@@ -8,4 +8,5 @@ if __name__ == "__main__":
                                 ellingson_df.sh)
 
     sol = spm.run_single_plume(sounding, assume_entr=True)
-    spm.save_as_csv(sol)
+    helpers.save_dict_elems_as_csv(sol)
+    helpers.save_dict_elems_as_csv(sounding)

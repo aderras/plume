@@ -327,7 +327,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
     return {"w_c":w_c, "mse_c":mse_c, "q_w":q_w, "t_c":t_c, "B":B,
             "mflux": mflux, "entr":entr, "detr":detr, "t_va":t_va,
             "t_vc":t_vc, "qi":qi, "q_va":q_va, "q_vc":q_vc, "height":height,
-            "entrT":entrT_list, "mse_a":mse_a, "mse_as":mse_as, "rho":ρ, "p":p}
+            "entrT":entrT_list, "rho":ρ}
 
 def save_as_csv(dict_of_data):
 
