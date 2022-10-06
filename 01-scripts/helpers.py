@@ -1,18 +1,16 @@
 import numpy as np
 import pandas as pd
 from user_inputs import folders
+from user_inputs import constants
 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 
 
-"""
-Select Runge-Kutta scheme by uncommenting one of the lines in this function.
-"""
 def rk(dydx, xn:float, yn:float, h:float, dydxArgs:list=[]):
-    # return rk4(dydx, xn, yn, h, dydxArgs)
-    return rk5(dydx, xn, yn, h, dydxArgs)
-    # return forward_euler(dydx, xn, yn, h, dydxArgs)
+    if constants.fd_scheme=="fe": return forward_euler(dydx, xn, yn, h, dydxArgs)
+    if constants.fd_scheme=="rk4": return rk4(dydx, xn, yn, h, dydxArgs)
+    if constnats.fd_scheme=="rk5": return rk5(dydx, xn, yn, h, dydxArgs)
 
 def forward_euler(dydx, xn:float, yn:float, h:float, dydxArgs:list=[]):
     k1 = dydx(xn, yn, *dydxArgs)
@@ -84,9 +82,8 @@ def save_dict_elems_as_csv(dict_of_data, dir=folders.DIR_DATA_OUTPUT):
         data_df = pd.DataFrame(v)
         data_df.to_csv(dir+"/"+k+".csv", index=False)
 
-
 def plot_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="",
-                save_path="", plot_mse_a=False):
+                save_path="", plot_mse_a=False, show_plot=False):
 
     fig = plt.figure(figsize=(6, 6))
 
@@ -106,8 +103,22 @@ def plot_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="",
         ax1.plot(mse_a, y_data_to_plot, color="k")
         ax1.plot(mse_as, y_data_to_plot, color="k", linestyle="--")
 
+    if save_path!="": plt.savefig(save_path)
+        
+    if show_plot: plt.show()
 
-    if save_path!="":
-        plt.savefig(save_path)
+def import_ellingson_sounding():
 
-    # plt.show()
+    # Ellingson file details
+    ELLINGSON_FILE = folders.DIR_DATA_INPUT+"/tropical_profile_ellingson_250m.txt"
+    ELLINGSON_COLUMNS = ["z", "p", "t", "skip1", "skip2", "sh", "rh", "mse",
+                        "mse_sat"]
+    ELLINGSON_NUM_OF_HEADER_ROWS = 2
+
+    # Reading in the Ellingson sounding
+    ellingson_df = pd.read_csv(ELLINGSON_FILE, sep="\s+", header=None,
+                                skiprows=ELLINGSON_NUM_OF_HEADER_ROWS)
+    ellingson_df.columns = ELLINGSON_COLUMNS
+    ellingson_df["z"] = ellingson_df["z"]*1000.0 # Convert to meters
+
+    return ellingson_df

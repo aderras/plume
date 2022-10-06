@@ -22,6 +22,8 @@ class constants:
     d_t = 7.0 # Kelvin
 
     ϵd = 0.622
+    
+    fd_scheme = "fe" # OPTIONS: fe=Forward Euler, rk4, rk5
 
 class folders:
 
