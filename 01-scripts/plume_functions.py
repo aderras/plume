@@ -11,10 +11,9 @@ def compute_buoyancy(t_vc:float, t_va:float, q_w:float) -> float:
     """
     return constants.CONSTANT_G * ((t_vc - t_va)/t_va - q_w)
 
-def compute_w_from_sh(sh):
+def compute_mr_from_sh(sh):
     """Compute water vapor mixing ratio from specific humidity """
-    w = sh/(1. - sh)
-    return w
+    return sh/(1. - sh)
 
 """
 The following equations are used by the Runge-Kutta solver. The first argument
@@ -90,7 +89,7 @@ def dqvcdz(tc, p, dpdz, dtcdz):
     """
     return constants.ϵd*(-compute_esat(tc)*dpdz/p**2 + desatdz(tc)*dtcdz/p)
 
-def compute_qi(tc, qw):
+def compute_mr_i(tc, qw):
     """
                                   t_c - t_o
         q_i = 0.5*q_w*(1 - tanh(-------------))
@@ -180,7 +179,7 @@ def compute_mse(T:float, H:float, P:float, Q:float) -> float:
 
     return mse
 
-def compute_qsat(t:float, p:float) -> float:
+def compute_mr_sat(t:float, p:float) -> float:
     """
     Compute the saturated mixing ratio using the temperature and pressure.
     Use the function written to compute specific humidity from water vapor
@@ -218,7 +217,7 @@ def compute_mse_sat(T:float, H:float, P:float) -> float:
     mse_geo = H*constants.CONSTANT_G
 
     # calculate q_sat for given temperature
-    qsat = compute_qsat(T,P)
+    qsat = compute_mr_sat(T,P)
     L = constants.CONSTANT_LV
 
     mse_water = L*qsat
@@ -226,5 +225,5 @@ def compute_mse_sat(T:float, H:float, P:float) -> float:
 
     return mse
 
-def compute_sh_from_q(q):
+def compute_sh_from_mr(q):
     return q/(1+q)

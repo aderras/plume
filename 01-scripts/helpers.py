@@ -66,8 +66,8 @@ def ddz(vec, n, dn, scheme="central"):
         return (vec[n+1] - vec[n])/dn
     elif scheme=="backwards":
         if n>1 and vec[n-2]!=np.nan:
-            return (vec[n] - vec[n-1])/dn
-            # return (3.0*vec[n]-4.0*vec[n-1]+vec[n-2])/(2.0*dn)
+            """Use second-order scheme if possible."""
+            return (3.0*vec[n]-4.0*vec[n-1]+vec[n-2])/(2.0*dn)
         else:
             return (vec[n] - vec[n-1])/dn
     else:

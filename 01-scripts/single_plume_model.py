@@ -14,7 +14,6 @@ import helpers
 def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
                   t:pd.core.series.Series, sh:pd.core.series.Series,
                   mse=None, mse_sat=None):
-
     """
     Create the sounding array necessary to run the single plume model,
     from individual profiles.
@@ -111,8 +110,8 @@ def find_index_lcl(t, height, p, sh, z_surf):
         temp_0 = t[t_start_ind] - Γd*constants.Δz*i
 
         # saturation mixing ratio for the air parcel, at the given level
-        q_sat_0 = compute_qsat(temp_0,p[i])
-        if (sh[t_start_ind] > compute_sh_from_q(q_sat_0)):
+        mr_sat_0 = compute_mr_sat(temp_0,p[i])
+        if (sh[t_start_ind] > compute_sh_from_mr(mr_sat_0)):
             # when specific humidity at level 0 exceeds saturation sh at
             # level
             return i
@@ -120,8 +119,8 @@ def find_index_lcl(t, height, p, sh, z_surf):
 
 def initialize_storage(s_len, e_len):
     # zero'ing out all the variables
-    q_w = np.full((s_len,e_len), np.nan) # condensed water
-    qi = np.full((s_len,e_len), np.nan) # condensed ice
+    mr_w = np.full((s_len,e_len), np.nan) # condensed water
+    mr_i = np.full((s_len,e_len), np.nan) # condensed ice
 
     B = np.full((s_len,e_len), np.nan) # buoyancy
     w_c = np.full((s_len,e_len), np.nan) # two versions
@@ -134,17 +133,42 @@ def initialize_storage(s_len, e_len):
 
     t_c = np.full((s_len,e_len), np.nan) #
 
-    q_va = np.full((s_len,e_len), np.nan) # vapor phase of q
-    q_vc = np.full((s_len,e_len), np.nan) #
+    mr_va = np.full((s_len,e_len), np.nan) # vapor phase of q
+    mr_vc = np.full((s_len,e_len), np.nan) #
 
     t_va = np.full((s_len,e_len), np.nan) # ambient virtual temperature
     t_vc = np.full((s_len,e_len), np.nan) #
 
-    return [w_c,mse_c,q_w,qi,t_c,B,mflux,entr,detr,q_va,q_vc,t_va,t_vc]
+    return [w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,mr_va,mr_vc,t_va,t_vc]
 
 def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
     print("Starting plume run...")
+
+    """
+    p = pressure [hPa]
+    t = temperature [K]
+    sh = specific humidity [kg/kg]
+    ρ = density [kg/m^3]
+    height = height [m]
+
+    w_c = in-cloud vertical velocity [m/s]
+
+    mse_a = ambient moist static energy [J/kg]
+    mse_c = in-cloud moist static enregy [J/kg]
+
+    mr_w = water vapor mixing ratio
+    mr_i = ice mixing ratio
+    mr_va = ambient water vapor mixing ratio
+    mr_vc = in-cloud saturated water vapor mixing ratio
+
+    t_c = in-cloud temperature [K]
+    t_vc = in-cloud virtual temperature [K]
+    t_va = atmosperic virtual temperature [K]
+
+    B = buoyancy [N/kg] = [m/s^2]
+
+    """
 
     height = sounding["z"]
     p = sounding["p"]
@@ -165,13 +189,15 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
     s_len = len(height)
     e_len = len(entrT_list)
 
-    w_c,mse_c,q_w,qi,t_c,B,mflux,entr,detr,\
-        q_va,q_vc,t_va,t_vc = initialize_storage(s_len,e_len)
+    w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,\
+        mr_va,mr_vc,t_va,t_vc = initialize_storage(s_len,e_len)
 
     """Initialize values at the LCL"""
-    q_w[i_lcl-1,:] = 0.0
-    qi[i_lcl-1,:] = 0.0
+    mr_w[i_lcl-1,:] = 0.0
+    mr_i[i_lcl-1,:] = 0.0
     w_c[i_lcl-1,:] = constants.w_c_init
+
+    # Initial moist-static-energy is saturated atmospheric moist-static-energy
     mse_c[i_lcl-1,:] = mse_as[i_lcl-1]
 
     for j, entrT in enumerate(entrT_list):
@@ -184,17 +210,17 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
         for n in range(i_lcl-1, s_len-1):
 
             t_c[n,j] = compute_TC_from_MSE(mse_c[n,j], height[n], p[n])
-            q_vc[n,j] = compute_qsat(t_c[n,j], p[n])
-            q_va[n,j] = compute_w_from_sh(sh[n])
+            mr_vc[n,j] = compute_mr_sat(t_c[n,j], p[n])
+            mr_va[n,j] = compute_mr_from_sh(sh[n])
 
-            t_vc[n,j] = compute_Tv(t_c[n,j], q_vc[n,j])
-            t_va[n,j] = compute_Tv(t[n], q_va[n,j])
+            t_vc[n,j] = compute_Tv(t_c[n,j], mr_vc[n,j])
+            t_va[n,j] = compute_Tv(t[n], mr_va[n,j])
 
-            B[n,j] = compute_buoyancy(t_vc[n,j], t_va[n,j], q_w[n,j])
+            B[n,j] = compute_buoyancy(t_vc[n,j], t_va[n,j], mr_w[n,j])
 
             mflux[n,j] = compute_mflux(p[n], t_vc[n,j], w_c[n,j])
 
-            qi[n,j] = compute_qi(t_c[n,j], q_w[n,j])
+            mr_i[n,j] = compute_mr_i(t_c[n,j], mr_w[n,j])
 
             """
             If this is right below the LCL, compute entrainment and detrainment
@@ -255,15 +281,15 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
                 """Compute dq_vc/dz to be used in dqidz"""
                 dqvcdz_val = dqvcdz(t_c[n,j], p[n], dpdz, dtcdz_param)
 
-                dqwdz_val = dqwdz(height[n], q_w[n,j], entr[n,j], dqvcdz_val,
-                                q_vc[n,j], q_va[n,j], w_c[n,j])
+                dqwdz_val = dqwdz(height[n], mr_w[n,j], entr[n,j], dqvcdz_val,
+                                mr_vc[n,j], mr_va[n,j], w_c[n,j])
 
-                dqidz_val = dqidz(height[n], qi[n,j], q_w[n,j], dqwdz_val,
+                dqidz_val = dqidz(height[n], mr_i[n,j], mr_w[n,j], dqwdz_val,
                                 t_c[n,j], dtcdz_param)
 
                 """Compute the n+1 element of in-cloud moist static energy"""
                 mse_c[n+1,j] = helpers.fd(dhcdz, height[n], mse_c[n,j],
-                    constants.Δz, [qi[n,j], dqidz_val, entr[n,j], mse_a[n]])
+                    constants.Δz, [mr_i[n,j], dqidz_val, entr[n,j], mse_a[n]])
 
                 """
                 Having computed all of the derivatives, we test the dtcdz_param
@@ -299,15 +325,15 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
             """Compute the n+1 element of water vapor mixing ratio when the
             while loop converges"""
-            q_w[n+1,j] = helpers.fd(dqwdz, height[n], q_w[n,j], constants.Δz,
-                            [entr[n,j], dqvcdz_val, q_vc[n,j], q_va[n,j],
+            mr_w[n+1,j] = helpers.fd(dqwdz, height[n], mr_w[n,j], constants.Δz,
+                            [entr[n,j], dqvcdz_val, mr_vc[n,j], mr_va[n,j],
                             w_c[n,j]])
 
             ## DEBUGGING ########################################################
             # print("\nWhile loop ended. Ending parameters for level ", n,"are: ")
             # print("w_c[n] = ",w_c[n,j],", w_c[n+1] = ", w_c[n+1,j],
             #     "\nmse_c[n,j] = ", mse_c[n,j], ",  mse_c[n+1,j] = ", mse_c[n+1,j],
-            #     "\nq_w[n,j] = ", q_w[n,j], ",  q_w[n+1,j] = ", q_w[n+1,j],
+            #     "\nmr_w[n,j] = ", mr_w[n,j], ",  mr_w[n+1,j] = ", mr_w[n+1,j],
             #     "\nt_c[n, j] = ", t_c[n,j], ", t_c[n+1,j] = ", t_c[n+1,j],
             #     "\ndtcdz_param = ", dtcdz_param
             #     )
@@ -315,7 +341,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
         if n<s_len: w_c[n+1,j]=np.nan
 
-    return {"w_c":w_c, "mse_c":mse_c, "q_w":q_w, "t_c":t_c, "B":B,
+    return {"w_c":w_c, "mse_c":mse_c, "q_w":mr_w, "t_c":t_c, "B":B,
             "mflux": mflux, "entr":entr, "detr":detr, "t_va":t_va,
-            "t_vc":t_vc, "q_i":qi, "q_va":q_va, "q_vc":q_vc,
+            "t_vc":t_vc, "q_i":mr_i, "q_va":mr_va, "q_vc":mr_vc,
             "entrT":entrT_list, "rho":ρ}
