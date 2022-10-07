@@ -1,8 +1,10 @@
 import os
+import numpy as np
 
 class constants:
 
-    entrT_list = [0.0, 5e-5, 1e-4, 4e-4, 4e-3]
+    entrT_list = np.append(np.arange(0, 0.1, 0.01), [0.1, 0.12, 0.15, 0.2, 0.3, 0.4])/1000
+    # entrT_list = np.arange(0.0, 0.15, 0.01)/1000
 
     CONSTANT_LV = 2.5e6 # [J/kg] Latent heat of vaporization of water
     CONSTANT_LI = 3.34e5 # [J/kg] Latent heat of fusion of water
@@ -22,8 +24,12 @@ class constants:
     d_t = 7.0 # Kelvin
 
     ϵd = 0.622
-    
+
     fd_scheme = "fe" # OPTIONS: fe=Forward Euler, rk4, rk5
+
+    w_c_init = 1.5
+
+    tol = 6.5e-5
 
 class folders:
 
