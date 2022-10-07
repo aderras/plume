@@ -2,21 +2,13 @@
 import numpy as np
 from numpy.testing._private.utils import assert_
 from scipy.interpolate import interp1d
-import metpy
-from metpy.units import units
+import pickle
+import pandas as pd
 
 from plume_functions import *
 from user_inputs import *
 import helpers
-# from numba import jit, njit
 
-import pickle
-
-import pandas as pd
-
-"""
-CTB = cloud top buoyancy. Is a function of height
-"""
 # CLIMATOLOGY_CTB = pickle.load(open('./climatology_all.pkl', 'rb'))
 
 def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
@@ -63,8 +55,6 @@ def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
         print("Input data has higher resolution than desired. Skipping"+
         " interpolation.")
         interp_Δz = in_z_meters[1]-in_z_meters[0]
-
-
 
     z_max = 20e3 # Max cloud height is 20 km
     n_z = round(z_max/interp_Δz) # Number of elements in the z direction
@@ -123,8 +113,8 @@ def find_index_lcl(t, height, p, sh, z_surf):
         # saturation mixing ratio for the air parcel, at the given level
         q_sat_0 = compute_qsat(temp_0,p[i])
         if (sh[t_start_ind] > compute_sh_from_q(q_sat_0)):
-            # when specific humidity at level 0 exceeds saturation q at
-            # level (level 0 is the level at which we have a T value)
+            # when specific humidity at level 0 exceeds saturation sh at
+            # level
             return i
     return -1
 
@@ -170,6 +160,8 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
     i_lcl = find_index_lcl(t, height, p, sh, z_surf)
 
+    # print("Found i_lcl = ", i_lcl, ", height of ", height[i_lcl])
+
     s_len = len(height)
     e_len = len(entrT_list)
 
@@ -179,8 +171,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
     """Initialize values at the LCL"""
     q_w[i_lcl-1,:] = 0.0
     qi[i_lcl-1,:] = 0.0
-
-    w_c[i_lcl-1,:] = np.sqrt(0.5)
+    w_c[i_lcl-1,:] = constants.w_c_init
     mse_c[i_lcl-1,:] = mse_as[i_lcl-1]
 
     for j, entrT in enumerate(entrT_list):
@@ -194,7 +185,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
             t_c[n,j] = compute_TC_from_MSE(mse_c[n,j], height[n], p[n])
             q_vc[n,j] = compute_qsat(t_c[n,j], p[n])
-            q_va[n,j] = compute_qsat(t[n], p[n])
+            q_va[n,j] = compute_w_from_sh(sh[n])
 
             t_vc[n,j] = compute_Tv(t_c[n,j], q_vc[n,j])
             t_va[n,j] = compute_Tv(t[n], q_va[n,j])
@@ -206,7 +197,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
             qi[n,j] = compute_qi(t_c[n,j], q_w[n,j])
 
             """
-            If this is the LCL, compute entrainment and detrainment
+            If this is right below the LCL, compute entrainment and detrainment
             assuming that dM/dz > 0. Otherwise compute dM/dz to determine
             entrainment and detrainment.
             """
@@ -244,7 +235,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
             if w_c[n+1,j] <= 0.0: break
 
             dtcdz_param = -0.01 # Arbitrary guess that gets updated
-            tol = 1e-6
+            tol = constants.tol
             err = 10.0
             numloops = 0
             max_loops = 30
@@ -272,7 +263,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
                 """Compute the n+1 element of in-cloud moist static energy"""
                 mse_c[n+1,j] = helpers.rk(dhcdz, height[n], mse_c[n,j],
-                    constants.Δz, [qi[n,j], dqidz_val, entr[n,j], mse_as[n]])
+                    constants.Δz, [qi[n,j], dqidz_val, entr[n,j], mse_a[n]])
 
                 """
                 Having computed all of the derivatives, we test the dtcdz_param
@@ -326,11 +317,5 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
     return {"w_c":w_c, "mse_c":mse_c, "q_w":q_w, "t_c":t_c, "B":B,
             "mflux": mflux, "entr":entr, "detr":detr, "t_va":t_va,
-            "t_vc":t_vc, "qi":qi, "q_va":q_va, "q_vc":q_vc, "height":height,
+            "t_vc":t_vc, "q_i":qi, "q_va":q_va, "q_vc":q_vc,
             "entrT":entrT_list, "rho":ρ}
-
-def save_as_csv(dict_of_data):
-
-    for k,v in dict_of_data.items():
-        data_df = pd.DataFrame(v)
-        data_df.to_csv(folders.DIR_DATA_OUTPUT+"/"+k+".csv", index=False)
