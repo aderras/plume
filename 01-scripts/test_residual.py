@@ -34,70 +34,6 @@ def compute_residual(dydz_func, z:list, y:list, dydz_args:list, frac=False):
     else:
         return dydz_fd - f_vec
 
-
-def compute_all_residuals_sol_obj(sol):
-
-    all_res = {}
-    n_z = sol["w_c"].shape[0]
-    n_entr = sol["w_c"].shape[1]
-
-    """Compute the derivatives in z that you will need."""
-    dpdz = [helpers.ddz(sol["rho"],i,constants.Δz) for i in range(n_z)]
-
-
-    dtcdz = np.zeros(sol["t_c"].shape)
-    dqvcdz_val = np.zeros(sol["t_c"].shape)
-    dqidz_val = np.zeros(sol["t_c"].shape)
-    dqwdz_val = np.zeros(sol["t_c"].shape)
-
-    i_lcl = 3 # Hard coding LCL of Ellingson data
-
-    for j in range(i_lcl-1,n_entr):
-        for n in range(n_z):
-            dtcdz[n,j] = helpers.ddz(sol["t_c"][:,j],n,constants.Δz)
-
-            dqvcdz_val[n,j] = plume_functions.dqvcdz(sol["t_c"][n,j],
-                                    sol["p"][n], dpdz[n], dtcdz[n,j])
-            dqwdz_val[n,j] = plume_functions.dqwdz(sol["height"],
-                                    sol["q_w"][n,j], sol["entr"][n,j],
-                                    dqvcdz_val[n,j], sol["q_vc"][n,j],
-                                    sol["q_va"][n,j], sol["w_c"][n,j])
-            dqidz_val[n,j] = plume_functions.dqidz(sol["height"][n],
-                                    sol["qi"][n,j], sol["q_w"][n,j],
-                                    dqwdz_val[n,j], sol["t_c"][n,j],
-                                    dtcdz[n,j])
-
-
-    res_dwcdz = np.empty(sol["w_c"].shape)
-    res_dhcdz = np.empty(sol["w_c"].shape)
-    res_dqwdz = np.empty(sol["w_c"].shape)
-
-    for j in range(n_entr):
-
-        """Computing residual of dw_c/dz equation."""
-        res_dwcdz[:,j] = compute_residual(plume_functions.dwcdz, sol["height"],
-                            sol["w_c"][:,j], [sol["B"][:,j], sol["entr"][:,j]])
-
-
-        """Compute the residual of the dh_c/dz equation."""
-        res_dhcdz[:,j] = compute_residual(plume_functions.dhcdz, sol["height"],
-                            sol["mse_c"][:,j],
-                            [sol["qi"][:,j], dqidz_val[:,j], sol["entr"][:,j],
-                            sol["mse_as"]])
-
-        """Compute the residual of the dq_w/dz equation."""
-        res_dqwdz[:,j] = compute_residual(plume_functions.dqwdz, sol["height"],
-                            sol["q_w"][:,j],
-                            [sol["entr"][:,j],dqvcdz_val[:,j],sol["q_vc"][:,j],
-                            sol["q_va"][:,j],sol["w_c"][:,j]])
-
-    all_res["res_dwcdz"] = res_dwcdz
-    all_res["res_dhcdz"] = res_dhcdz
-    all_res["res_dqwdz"] = res_dqwdz
-
-
-    return all_res
-
 def compute_all_residuals(sol, frac=False):
 
     all_res = {}
@@ -105,8 +41,7 @@ def compute_all_residuals(sol, frac=False):
     n_entr = sol["w_c"].shape[1]
 
     """Compute the derivatives in z that you will need."""
-    dpdz = [helpers.ddz(sol["rho"],i,constants.Δz) for i in range(n_z)]
-
+    dpdz = [helpers.ddz(sol["p"],i,constants.Δz) for i in range(n_z)]
 
     dtcdz = np.zeros(sol["t_c"].shape)
     dqvcdz_val = np.zeros(sol["t_c"].shape)
@@ -115,19 +50,18 @@ def compute_all_residuals(sol, frac=False):
 
     for j in range(n_entr):
         for n in range(n_z):
-            dtcdz[n,j] = helpers.ddz(sol["t_c"][:,j],n,constants.Δz)
+            dtcdz[n,j] = helpers.ddz(sol["t_c"][:,j],n,constants.Δz,"backwards")
 
             dqvcdz_val[n,j] = plume_functions.dqvcdz(sol["t_c"][n,j],
                                     sol["p"][n], dpdz[n], dtcdz[n,j])
-            dqwdz_val[n,j] = plume_functions.dqwdz(sol["height"],
+            dqwdz_val[n,j] = plume_functions.dqwdz(sol["z"],
                                     sol["q_w"][n,j], sol["entr"][n,j],
                                     dqvcdz_val[n,j], sol["q_vc"][n,j],
                                     sol["q_va"][n,j], sol["w_c"][n,j])
-            dqidz_val[n,j] = plume_functions.dqidz(sol["height"][n],
-                                    sol["qi"][n,j], sol["q_w"][n,j],
+            dqidz_val[n,j] = plume_functions.dqidz(sol["z"][n],
+                                    sol["q_i"][n,j], sol["q_w"][n,j],
                                     dqwdz_val[n,j], sol["t_c"][n,j],
                                     dtcdz[n,j])
-
 
     res_dwcdz = np.zeros(sol["w_c"].shape)
     res_dhcdz = np.zeros(sol["w_c"].shape)
@@ -136,19 +70,19 @@ def compute_all_residuals(sol, frac=False):
     for j in range(n_entr):
 
         """Computing residual of dw_c/dz equation."""
-        res_dwcdz[:,j] = compute_residual(plume_functions.dwcdz, sol["height"],
+        res_dwcdz[:,j] = compute_residual(plume_functions.dwcdz, sol["z"],
                             sol["w_c"][:,j], [sol["B"][:,j], sol["entr"][:,j]],
                             frac)
 
 
         """Compute the residual of the dh_c/dz equation."""
-        res_dhcdz[:,j] = compute_residual(plume_functions.dhcdz, sol["height"],
+        res_dhcdz[:,j] = compute_residual(plume_functions.dhcdz, sol["z"],
                             sol["mse_c"][:,j],
-                            [sol["qi"][:,j], dqidz_val[:,j], sol["entr"][:,j],
+                            [sol["q_i"][:,j], dqidz_val[:,j], sol["entr"][:,j],
                             sol["mse_as"]], frac)
 
         """Compute the residual of the dq_w/dz equation."""
-        res_dqwdz[:,j] = compute_residual(plume_functions.dqwdz, sol["height"],
+        res_dqwdz[:,j] = compute_residual(plume_functions.dqwdz, sol["z"],
                             sol["q_w"][:,j],
                             [sol["entr"][:,j],dqvcdz_val[:,j],sol["q_vc"][:,j],
                             sol["q_va"][:,j],sol["w_c"][:,j]], frac)
@@ -179,7 +113,7 @@ def import_residuals(dir=folders.DIR_DATA_OUTPUT, frac=False):
 
 def plot_height_vs_data(data_to_plot, x_label="", save_path=""):
 
-    height = pd.read_csv(folders.DIR_DATA_OUTPUT + "/height.csv")
+    height = pd.read_csv(folders.DIR_DATA_OUTPUT + "/z.csv")
     entrT = pd.read_csv(folders.DIR_DATA_OUTPUT + "/entrT.csv")
 
     fig = plt.figure(figsize=(6, 6))
@@ -212,42 +146,40 @@ if __name__ == "__main__":
     ## Begin residual calculations #############################################
     dir = folders.DIR_DATA_OUTPUT
 
-    fractional = True
-
-    sol = helpers.import_fnames_as_dict(
-        [dir + "/height.csv", dir + "/p.csv", dir + "/rho.csv",
-         dir + "/mse_as.csv", dir + "/w_c.csv", dir + "/t_c.csv",
-         dir + "/q_w.csv", dir + "/q_vc.csv", dir + "/q_va.csv",
-         dir + "/w_c.csv", dir + "/qi.csv", dir + "/mse_c.csv", dir + "/B.csv",
-         dir + "/entr.csv"])
-    res = compute_all_residuals(sol, fractional)
-    save_all_residuals(res)
-    res_imp = import_residuals(dir,fractional)
+    # fractional = False
+    #
+    # sol = helpers.import_fnames_as_dict(
+    #     [dir + "/z.csv", dir + "/p.csv", dir + "/rho.csv",
+    #      dir + "/mse_as.csv", dir + "/w_c.csv", dir + "/t_c.csv",
+    #      dir + "/q_w.csv", dir + "/q_vc.csv", dir + "/q_va.csv",
+    #      dir + "/w_c.csv", dir + "/q_i.csv", dir + "/mse_c.csv", dir + "/B.csv",
+    #      dir + "/entr.csv"])
+    # res = compute_all_residuals(sol, frac=fractional)
+    # save_all_residuals(res)
+    # res_imp = import_residuals(dir, frac=fractional)
 
     ############################################################################
     # """This chunk of code is used to plot JJ's data"""
-    # sol0 = helpers.import_fnames_as_dict([dir + "/height.csv",
-    #                                     dir + "/p.csv",
-    #                                     dir + "/rho.csv",
-    #                                     dir + "/mse_as.csv"
-    #                                     ])
-    #
-    # dir_jj = folders.DIR_DATA_OUTPUT +"_jj"
-    # sol1 = helpers.import_fnames_as_dict([dir_jj + "/w_c.csv",
-    #                                     dir_jj + "/t_c.csv",
-    #                                     dir_jj + "/q_w.csv",
-    #                                     dir_jj + "/q_vc.csv",
-    #                                     dir_jj + "/q_va.csv",
-    #                                     dir_jj + "/w_c.csv",
-    #                                     dir_jj + "/qi.csv",
-    #                                     dir_jj + "/mse_c.csv",
-    #                                     dir_jj + "/B.csv",
-    #                                     dir_jj + "/entr.csv"
-    #                                     ])
-    # sol = sol0 | sol1
-    # res = compute_all_residuals(sol)
-    # save_all_residuals(res, dir_jj)
-    # res_imp = import_residuals(dir_jj)
+    sol0 = helpers.import_fnames_as_dict([dir + "/z.csv",
+                                        dir + "/p.csv",
+                                        dir + "/mse_as.csv",
+                                        dir + "/q_va.csv"
+                                        ])
+
+    dir_jj = folders.DIR_DATA_OUTPUT +"_jj"
+    sol1 = helpers.import_fnames_as_dict([dir_jj + "/w_c.csv",
+                                        dir_jj + "/t_c.csv",
+                                        dir_jj + "/q_w.csv",
+                                        dir_jj + "/q_vc.csv",
+                                        dir_jj + "/q_i.csv",
+                                        dir_jj + "/mse_c.csv",
+                                        dir_jj + "/B.csv",
+                                        dir_jj + "/entr.csv"
+                                        ])
+    sol = sol0 | sol1
+    res = compute_all_residuals(sol)
+    save_all_residuals(res, dir_jj)
+    res_imp = import_residuals(dir_jj)
     ############################################################################
 
     plot_residuals(res_imp)
