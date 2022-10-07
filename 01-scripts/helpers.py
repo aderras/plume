@@ -8,7 +8,7 @@ from matplotlib.pyplot import cm
 
 ## FINITE DIFFERENCE FUNCTIONS ################################################
 
-def rk(dydx, xn:float, yn:float, h:float, dydxArgs:list=[]):
+def fd(dydx, xn:float, yn:float, h:float, dydxArgs:list=[]):
     if constants.fd_scheme=="fe": return forward_euler(dydx, xn, yn, h, dydxArgs)
     if constants.fd_scheme=="rk4": return rk4(dydx, xn, yn, h, dydxArgs)
     if constnats.fd_scheme=="rk5": return rk5(dydx, xn, yn, h, dydxArgs)

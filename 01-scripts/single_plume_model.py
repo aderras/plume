@@ -229,7 +229,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
             ## END DEBUGGING ####################################################
 
             """Compute the n+1 element of vertical velocity from the nth one"""
-            w_c[n+1,j] = helpers.rk(dwcdz, height[n], w_c[n,j],
+            w_c[n+1,j] = helpers.fd(dwcdz, height[n], w_c[n,j],
                                     constants.Δz, [B[n,j], entr[n,j]])
 
             if w_c[n+1,j] <= 0.0: break
@@ -262,7 +262,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
                                 t_c[n,j], dtcdz_param)
 
                 """Compute the n+1 element of in-cloud moist static energy"""
-                mse_c[n+1,j] = helpers.rk(dhcdz, height[n], mse_c[n,j],
+                mse_c[n+1,j] = helpers.fd(dhcdz, height[n], mse_c[n,j],
                     constants.Δz, [qi[n,j], dqidz_val, entr[n,j], mse_a[n]])
 
                 """
@@ -299,7 +299,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
             """Compute the n+1 element of water vapor mixing ratio when the
             while loop converges"""
-            q_w[n+1,j] = helpers.rk(dqwdz, height[n], q_w[n,j], constants.Δz,
+            q_w[n+1,j] = helpers.fd(dqwdz, height[n], q_w[n,j], constants.Δz,
                             [entr[n,j], dqvcdz_val, q_vc[n,j], q_va[n,j],
                             w_c[n,j]])
 
