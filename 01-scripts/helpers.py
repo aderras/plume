@@ -6,6 +6,7 @@ from user_inputs import constants
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 
+## FINITE DIFFERENCE FUNCTIONS ################################################
 
 def rk(dydx, xn:float, yn:float, h:float, dydxArgs:list=[]):
     if constants.fd_scheme=="fe": return forward_euler(dydx, xn, yn, h, dydxArgs)
@@ -64,23 +65,15 @@ def ddz(vec, n, dn, scheme="central"):
     if scheme=="forwards":
         return (vec[n+1] - vec[n])/dn
     elif scheme=="backwards":
-        if n>1 and vec[n-2]==np.nan:
-            return (3.0*vec[n]-4.0*vec[n-1]+vec[n-2])/(2.0*dn)
+        if n>1 and vec[n-2]!=np.nan:
+            return (vec[n] - vec[n-1])/dn
+            # return (3.0*vec[n]-4.0*vec[n-1]+vec[n-2])/(2.0*dn)
         else:
             return (vec[n] - vec[n-1])/dn
     else:
         return (vec[n+1] - vec[n-1])/(2.0*dn)
 
-def import_fnames_as_dict(fnames):
-    data_dict = {}
-    for fn in fnames:
-        data_dict[fn.split("/")[-1][:-4]] = pd.read_csv(fn).to_numpy()
-    return data_dict
-
-def save_dict_elems_as_csv(dict_of_data, dir=folders.DIR_DATA_OUTPUT):
-    for k,v in dict_of_data.items():
-        data_df = pd.DataFrame(v)
-        data_df.to_csv(dir+"/"+k+".csv", index=False)
+## PLOTTING FUNCTIONS #########################################################
 
 def plot_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="",
                 save_path="", plot_mse_a=False, show_plot=False):
@@ -104,8 +97,70 @@ def plot_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="",
         ax1.plot(mse_as, y_data_to_plot, color="k", linestyle="--")
 
     if save_path!="": plt.savefig(save_path)
-        
+
     if show_plot: plt.show()
+
+def plot_row_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="",
+                save_path="", plot_mse_a=False, same_scale=False, show_legend=True,
+                show_grid=False, invert_y_axis=False):
+
+    nplots = len(x_data_to_plot)
+    fig = plt.figure(figsize=(6*nplots, 6))
+
+    if len(y_data_to_plot.shape)==1:
+        y_data_to_plot = np.tile(y_data_to_plot, (len(entrT),1)).transpose()
+
+    axs = [[] for k in range(nplots)]
+
+    for k in range(nplots):
+
+        color = iter(cm.rainbow(np.linspace(0, 1, len(entrT))))
+
+        axs[k] = plt.subplot(1,nplots,k+1)
+        for i, ϵT in enumerate(entrT):
+            c = next(color)
+            axs[k].plot(x_data_to_plot[k][:,i], y_data_to_plot[:,i], color=c, label=ϵT)
+        if show_legend: plt.legend(loc=0, title="ϵT")
+        # axs[k].set_yscale("log")
+        plt.xlabel(x_label)
+        plt.ylabel(y_label)
+        if show_grid: plt.grid(linestyle='--', linewidth=0.4)
+
+        if plot_mse_a:
+            mse_a = pd.read_csv(folders.DIR_DATA_OUTPUT + "/mse_a.csv")
+            mse_as = pd.read_csv(folders.DIR_DATA_OUTPUT + "/mse_as.csv")
+            axs[k].plot(mse_a, y_data_to_plot, color="k")
+            axs[k].plot(mse_as, y_data_to_plot, color="k", linestyle="--")
+
+    if same_scale:
+        xmin1, xmax1, ymin1, ymax1 = axs[0].axis()
+        for k in range(1,nplots):
+            xmin2, xmax2, ymin2, ymax2 = axs[k].axis()
+            if xmin2<xmin1: xmin1 = xmin2
+            if ymin2<ymin1: ymin1 = ymin2
+            if xmax2>xmax1: xmax1 = xmax2
+            if ymax2>ymax1: ymax1 = ymax2
+
+        for k in range(nplots):
+            axs[k].set_xlim(xmin1,xmax1)
+            axs[k].set_ylim(ymin1,ymax1)
+
+            if invert_y_axis: axs[k].invert_yaxis()
+
+    if save_path!="": plt.savefig(save_path)
+
+## IMPORT AND EXPORT FUNCTIONS #################################################
+
+def import_fnames_as_dict(fnames):
+    data_dict = {}
+    for fn in fnames:
+        data_dict[fn.split("/")[-1][:-4]] = pd.read_csv(fn).to_numpy()
+    return data_dict
+
+def save_dict_elems_as_csv(dict_of_data, dir=folders.DIR_DATA_OUTPUT):
+    for k,v in dict_of_data.items():
+        data_df = pd.DataFrame(v)
+        data_df.to_csv(dir+"/"+k+".csv", index=False)
 
 def import_ellingson_sounding():
 
