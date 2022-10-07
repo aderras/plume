@@ -1,14 +1,20 @@
 import numpy as np
 from user_inputs import constants
 import helpers
+from scipy.optimize import fsolve
 
 def compute_buoyancy(t_vc:float, t_va:float, q_w:float) -> float:
     """
                  T_vc - T_va
-        B = g * --------------
-                  T_va - q_w
+        B = g * -------------- - q_w
+                    T_va
     """
     return constants.CONSTANT_G * ((t_vc - t_va)/t_va - q_w)
+
+def compute_w_from_sh(sh):
+    """Compute water vapor mixing ratio from specific humidity """
+    w = sh/(1. - sh)
+    return w
 
 """
 The following equations are used by the Runge-Kutta solver. The first argument
@@ -63,7 +69,6 @@ def dhcdz(z, hc, qi, dqidz, ϵ, ha):
          dz         dz
 
     """
-
     return constants.CONSTANT_LI*dqidz - ϵ*(hc-constants.CONSTANT_LI*qi-ha)
 
 def desatdz(T:float) -> float:
@@ -139,38 +144,19 @@ def compute_Tv(t:float, w:float) -> float:
 def compute_density(p:float, t:float) -> float:
     return p*100/(t*287)
 
-def compute_TC_from_MSE(mse_in, z_in, p_in):
+def compute_TC_from_MSE(mse, z, p):
     """
-    Compute the saturation (dew point?) temperature from the moist static energy.
+    Compute the saturation temperature from the moist static energy.
     TC = cloud temperature.
 
     MSE = cp*T + g*z + Lv*q
 
     in: mse_in = input m
     """
+    f = lambda T: compute_mse_sat(T,z,p) - mse
+    ans = fsolve(f, 300)
 
-    """
-    The following line makes an vector from 100 to 349.99 in steps of 0.01. Why
-    are these limits chosen?
-
-    TC will not exceed limits enforced by physics
-
-    JJ is essentially guessing tc values and seeing which one minimizes mse
-    """
-    tc = np.arange(100,350,0.01) # [K]
-
-    z = np.full(tc.shape,z_in) # [m]
-    p = np.full(tc.shape,p_in) # [hPa]
-    mse_in = np.full(tc.shape, mse_in)
-
-    mse = compute_mse_sat(tc,z,p)
-
-    diff_mse = np.abs(mse - mse_in)
-    ind = np.argmin(diff_mse)
-
-    tc_min = tc[ind]
-
-    return tc_min
+    return ans[0]
 
 def compute_mse(T:float, H:float, P:float, Q:float) -> float:
     """
@@ -200,15 +186,12 @@ def compute_qsat(t:float, p:float) -> float:
     Use the function written to compute specific humidity from water vapor
     mixing ratio.
 
+        q_sat = ϵ * e_sat/(p-e_sat).
+
     in: t = temperature in Kelvin, p = pressure in hPa
-
-        q_sat = ϵ * e_sat/p
-
-    (See equation (5.7) of Salby.)
-
     """
     e_sat = compute_esat(t) # convert e_sat Pascals to hectoPascals
-    return 0.622 * e_sat/p
+    return 0.622 * e_sat/(p-e_sat)
 
 def compute_esat(T:float) -> float:
     """
