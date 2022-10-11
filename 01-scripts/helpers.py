@@ -71,26 +71,33 @@ def ddz(vec, n, dn, scheme="central"):
 
 ## PLOTTING FUNCTIONS #########################################################
 
-def plot_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="",
-                save_path="", plot_mse_a=False, show_plot=False):
+def plot_y_vs_x(x_data_to_plot, y_data_to_plot, entrT=[], x_label="", y_label="",
+                save_path="", plot_mse_a=[], show_plot=False,
+                show_legend=False):
 
     fig = plt.figure(figsize=(6, 6))
 
     color = iter(cm.rainbow(np.linspace(0, 1, len(entrT))))
     ax1 = plt.subplot(1,1,1)
-    for i, ϵT in enumerate(entrT):
-        c = next(color)
-        ax1.plot(x_data_to_plot[:,i], y_data_to_plot[:,i], color=c, label=ϵT)
-    plt.legend(loc=0, title="ϵT")
-    # ax1.set_yscale("log")
+
+    if entrT==[] and len(x_data_to_plot.shape)>1:
+        print("No labels given for multi-line plot.")
+
+    if len(entrT)!=0.0:
+        for i, ϵT in enumerate(entrT):
+            c = next(color)
+            ax1.plot(x_data_to_plot[:,i], y_data_to_plot[:,i], color=c, label=ϵT)
+    else:
+        ax1.plot(x_data_to_plot, y_data_to_plot)
+
+    if show_legend: plt.legend(loc=0, title="ϵT")
+
     plt.xlabel(x_label)
     plt.ylabel(y_label)
 
-    if plot_mse_a:
-        mse_a = pd.read_csv(folders.DIR_DATA_OUTPUT + "/mse_a.csv")
-        mse_as = pd.read_csv(folders.DIR_DATA_OUTPUT + "/mse_as.csv")
-        ax1.plot(mse_a, y_data_to_plot, color="k")
-        ax1.plot(mse_as, y_data_to_plot, color="k", linestyle="--")
+    if len(plot_mse_a)!=0.0:
+        ax1.plot(plot_mse_a[0], y_data_to_plot, color="k")
+        ax1.plot(plot_mse_a[1], y_data_to_plot, color="k", linestyle="--")
 
     if save_path!="": plt.savefig(save_path)
 
@@ -98,10 +105,10 @@ def plot_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="",
 
 def plot_row_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="",
                 save_path="", plot_mse_a=False, same_scale=False, show_legend=True,
-                show_grid=False, invert_y_axis=False):
+                show_grid=False, invert_y_axis=False, xticks_rotation=0):
 
     nplots = len(x_data_to_plot)
-    fig = plt.figure(figsize=(6*nplots, 6))
+    fig = plt.figure(figsize=(5*nplots, 5))
 
     if len(y_data_to_plot.shape)==1:
         y_data_to_plot = np.tile(y_data_to_plot, (len(entrT),1)).transpose()
@@ -120,6 +127,8 @@ def plot_row_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="
         # axs[k].set_yscale("log")
         plt.xlabel(x_label)
         plt.ylabel(y_label)
+        plt.xticks(rotation=xticks_rotation)
+
         if show_grid: plt.grid(linestyle='--', linewidth=0.4)
 
         if plot_mse_a:
@@ -143,7 +152,7 @@ def plot_row_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="
 
             if invert_y_axis: axs[k].invert_yaxis()
 
-    if save_path!="": plt.savefig(save_path)
+    if save_path!="": plt.savefig(save_path, bbox_inches="tight")
 
 ## IMPORT AND EXPORT FUNCTIONS #################################################
 
@@ -153,10 +162,10 @@ def import_fnames_as_dict(fnames):
         data_dict[fn.split("/")[-1][:-4]] = pd.read_csv(fn).to_numpy()
     return data_dict
 
-def save_dict_elems_as_csv(dict_of_data, dir=folders.DIR_DATA_OUTPUT):
+def save_dict_elems_as_csv(dict_of_data, dir=folders.DIR_DATA_OUTPUT, suffix=""):
     for k,v in dict_of_data.items():
         data_df = pd.DataFrame(v)
-        data_df.to_csv(dir+"/"+k+".csv", index=False)
+        data_df.to_csv(dir+"/"+k+suffix+".csv", index=False)
 
 def import_ellingson_sounding():
 
