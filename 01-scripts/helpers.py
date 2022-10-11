@@ -80,6 +80,10 @@ def plot_y_vs_x(x_data_to_plot, y_data_to_plot, entrT=[], x_label="", y_label=""
     color = iter(cm.rainbow(np.linspace(0, 1, len(entrT))))
     ax1 = plt.subplot(1,1,1)
 
+    if y_data_to_plot.shape != x_data_to_plot.shape:
+        y_data_to_plot = np.tile(y_data_to_plot[:,0], (x_data_to_plot.shape[1],1))
+        y_data_to_plot = y_data_to_plot.transpose()
+
     if entrT==[] and len(x_data_to_plot.shape)>1:
         print("No labels given for multi-line plot.")
 
@@ -96,8 +100,8 @@ def plot_y_vs_x(x_data_to_plot, y_data_to_plot, entrT=[], x_label="", y_label=""
     plt.ylabel(y_label)
 
     if len(plot_mse_a)!=0.0:
-        ax1.plot(plot_mse_a[0], y_data_to_plot, color="k")
-        ax1.plot(plot_mse_a[1], y_data_to_plot, color="k", linestyle="--")
+        ax1.plot(plot_mse_a[0][:,0], y_data_to_plot[:,0], color="k")
+        ax1.plot(plot_mse_a[1][:,0], y_data_to_plot[:,0], color="k", linestyle="--")
 
     if save_path!="": plt.savefig(save_path)
 
@@ -153,6 +157,49 @@ def plot_row_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="
             if invert_y_axis: axs[k].invert_yaxis()
 
     if save_path!="": plt.savefig(save_path, bbox_inches="tight")
+
+
+def plot_y_vs_x_weighted(x_data_to_plot, y_data_to_plot, y_data_weighted,
+        entrT=[], x_label="",
+        y_label="",save_path="", plot_mse_a=[], show_plot=False,
+        show_legend=False, show_grid=False, invert_y_axis=False,
+        xticks_rotation=0):
+
+    fig = plt.figure(figsize=(5, 5))
+    ax1 = plt.subplot(1,1,1)
+
+
+    if y_data_to_plot.shape != x_data_to_plot.shape:
+        y_data_to_plot = np.tile(y_data_to_plot[:,0], (x_data_to_plot.shape[1],1))
+        y_data_to_plot = y_data_to_plot.transpose()
+
+    if entrT==[]:
+        for i in range(x_data_to_plot.shape[1]):
+            ax1.plot(x_data_to_plot[:,i], y_data_to_plot[:,i], color="0.8")
+    else:
+        for i, ϵT in enumerate(entrT):
+            ax1.plot(x_data_to_plot[:,i], y_data_to_plot[:,i], color="0.8", label=ϵT)
+
+    ax1.plot(y_data_weighted, y_data_to_plot[:,0], color="k")
+
+    if len(plot_mse_a)!=0.0:
+        ax1.plot(plot_mse_a[0], y_data_to_plot, color="y")
+        ax1.plot(plot_mse_a[1], y_data_to_plot, color="y", linestyle="--")
+
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.xticks(rotation=xticks_rotation)
+
+    if show_legend: plt.legend(loc=0, title="ϵT")
+
+    if show_grid: plt.grid(linestyle='--', linewidth=0.4)
+
+    if invert_y_axis: ax1.invert_yaxis()
+
+    if save_path!="": plt.savefig(save_path, bbox_inches="tight")
+
+    if show_plot: plt.show()
+
 
 ## IMPORT AND EXPORT FUNCTIONS #################################################
 

@@ -70,14 +70,12 @@ def dhcdz(z, hc, qi, dqidz, ϵ, ha):
     """
     return constants.CONSTANT_LI*dqidz - ϵ*(hc-constants.CONSTANT_LI*qi-ha)
 
-def desatdz(T:float) -> float:
+def desatdT(T:float) -> float:
     """
     Derivative of the Claussius Clapyeron equation with respect to T.
     """
+    return constants.CONSTANT_LV*compute_esat(T)/(constants.Rv*T**2)
 
-    C = T - 273.15 # Convert temperature to celsius
-
-    return 26170.1*np.exp(17.625*C/(C+243.04))/(243.04+C)**2
 
 def dqvcdz(tc, p, dpdz, dtcdz):
     """
@@ -87,7 +85,7 @@ def dqvcdz(tc, p, dpdz, dtcdz):
        ------- = -ϵd (------ ---- + --- -------- -----)
           dz           p^2    dz     p    dT_c    dz
     """
-    return constants.ϵd*(-compute_esat(tc)*dpdz/p**2 + desatdz(tc)*dtcdz/p)
+    return constants.ϵd*(-compute_esat(tc)*dpdz/p**2 + desatdT(tc)*dtcdz/p)
 
 def compute_mr_i(tc, qw):
     """
@@ -200,8 +198,9 @@ def compute_esat(T:float) -> float:
     in: T = temperature in Kelvin
     out: e_sat = saturation vapor pressure in hPa
     """
-    C = T - 273.15 # Convert temperature to celsius
-    return 6.1094*np.exp(17.625*C/(C+243.04)) # <-- From wikipedia
+    # C = T - 273.15 # Convert temperature to celsius
+    # return 6.1094*np.exp(17.625*C/(C+243.04)) # <-- From wikipedia
+    return 2.53e9*np.exp(-5.42e3/T)
 
 def compute_mse_sat(T:float, H:float, P:float) -> float:
     """

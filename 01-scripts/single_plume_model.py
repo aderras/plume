@@ -50,6 +50,8 @@ def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
             " desired resolution. Interpolating to user-specified Δz = ",
             constants.Δz)
         interp_Δz = constants.Δz
+
+
     elif in_z_meters[1]-in_z_meters[0] < constants.Δz:
         print("Input data has higher resolution than desired. Skipping"+
         " interpolation.")
@@ -71,17 +73,19 @@ def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
     sh_fn_z = interp1d(in_z_meters, in_sh, fill_value='extrapolate')
     sh = sh_fn_z(z_meters)
 
-    if (mse is None):
-        mse_a = compute_mse(t, z_meters, p, sh)
-    else:
+    if (mse is not None):
         mse_fn_z = interp1d(in_z_meters, in_mse, fill_value='extrapolate')
         mse_a = mse_fn_z(z_meters)
 
-    if (mse_sat is None):
-        mse_as = compute_mse_sat(t, z_meters, p)
-    else:
+    if (mse_sat is not None):
         mse_sat_fn_z = interp1d(in_z_meters, in_mse_sat, fill_value='extrapolate')
         mse_as = mse_sat_fn_z(z)
+
+    if (mse is None):
+        mse_a = compute_mse(t, z_meters, p, sh)
+
+    if (mse_sat is None):
+        mse_as = compute_mse_sat(t, z_meters, p)
 
     """Save sounding data as a dictionary"""
     sounding = {}
@@ -143,7 +147,7 @@ def initialize_storage(s_len, e_len):
 
 def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
-    print("Starting plume run...")
+    # print("Starting plume run...")
 
     """
     p = pressure [hPa]
@@ -212,10 +216,8 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
             t_c[n,j] = compute_TC_from_MSE(mse_c[n,j], height[n], p[n])
             mr_vc[n,j] = compute_mr_sat(t_c[n,j], p[n])
             mr_va[n,j] = compute_mr_from_sh(sh[n])
-
             t_vc[n,j] = compute_Tv(t_c[n,j], mr_vc[n,j])
             t_va[n,j] = compute_Tv(t[n], mr_va[n,j])
-
             B[n,j] = compute_buoyancy(t_vc[n,j], t_va[n,j], mr_w[n,j])
 
             mflux[n,j] = compute_mflux(p[n], t_vc[n,j], w_c[n,j])
@@ -233,6 +235,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
                 detr[n,j] = entrT
             elif n==i_lcl-1 and assume_entr==False:
                 entr[n,j] = entrT
+                detr[n,j] = entrT
             else:
                 dmdz = helpers.ddz(mflux[:,j], n, constants.Δz, "backwards")
 
@@ -341,6 +344,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
         if n<s_len: w_c[n+1,j]=np.nan
 
+    # print("Completed plume run.")
     return {"w_c":w_c, "mse_c":mse_c, "q_w":mr_w, "t_c":t_c, "B":B,
             "mflux": mflux, "entr":entr, "detr":detr, "t_va":t_va,
             "t_vc":t_vc, "q_i":mr_i, "q_va":mr_va, "q_vc":mr_vc,
