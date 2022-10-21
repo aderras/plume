@@ -1,37 +1,16 @@
 import os
 import numpy as np
 
-class constants:
+class era5_options:
 
-    entrT_list = np.append(np.arange(0, 0.1, 0.01), [0.1, 0.12, 0.15, 0.2, 0.3, 0.4])/1000
-    # entrT_list = np.arange(0.0, 0.15, 0.01)/1000
-
-    CONSTANT_LV = 2.5e6 # [J/kg] Latent heat of vaporization of water
-    CONSTANT_LI = 3.34e5 # [J/kg] Latent heat of fusion of water
-
-    Rv = 461.5 # [J/(kg*K)] specific gas constant of water vapor
-
-    CONSTANT_CP = 1005 # [J/(kg.K)] Specific heat a constant pressure of dry air
-
-    CONSTANT_G = 9.81 # [m/s^2] Acceleration of gravity
-
-    Δz = 50. # [m]
-
-    a_b = 1.0/6.0
-
-    τauto = 1.e3 # 10^3s
-    q_w_crit = 1.e-3 # 10^-3 kg/kg
-
-    t_o = 253.15 # Kelvin
-    d_t = 7.0 # Kelvin
-
-    ϵd = 0.622
-
-    fd_scheme = "fe" # OPTIONS: fe=Forward Euler, rk4, rk5
-
-    w_c_init = 1.5
-
-    tol = 6.5e-5
+    # The following constants are used for the ERA5 data:
+    time = np.arange(0.0, 2400.0, 100.0)
+    level = np.flip(np.array([1, 2, 3, 5, 7, 10, 20, 30, 50, 70, 100, 125, 150,\
+                      175, 200, 225, 250, 300, 350, 400, 450, 500, 550,\
+                      600, 650, 700, 750, 775, 800, 825, 850, 875, 900,\
+                      925, 950, 975, 1000]))
+    lat = np.arange(0,721)
+    lon = np.arange(0,1440)
 
 class folders:
 
@@ -39,5 +18,7 @@ class folders:
     DIR_DATA = DIR_PAR + "/02-data"
     DIR_DATA_INPUT = DIR_DATA + "/in"
     DIR_DATA_OUTPUT = DIR_DATA + "/out"
+    DIR_DATA_POSTPROC = DIR_DATA + "/post-proc"
+    DIR_DATA_STORE = DIR_DATA + "/store"
 
     DIR_FIGS = DIR_PAR + "/03-figs"

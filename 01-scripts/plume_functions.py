@@ -1,8 +1,32 @@
 import numpy as np
-from user_inputs import constants
 import helpers
 from scipy.optimize import fsolve
 
+import numba
+from numba import njit
+from numba import jit
+
+# import constants
+import constants
+
+@njit()
+def compute_z_from_geopotential(Φ, z0=0):
+    """
+                  1       1
+        Φ = G*m*(--- - -------)
+                  a      a+z
+
+        Φ = geopotential in m^2/s^2 (given)
+        G = 6.73e-11 N m^2/(kg^2) (gravitational constant)
+        a = 6.387e6 m (average radius of earth)
+        m = 5.975e24 kg (mass of earth)
+        z = geometric height in meters
+
+    Solve this equation for z
+    """
+    return (1/constants.a-Φ/(constants.G*constants.m))**-1 - constants.a
+
+@njit()
 def compute_buoyancy(t_vc:float, t_va:float, q_w:float) -> float:
     """
                  T_vc - T_va
@@ -11,6 +35,7 @@ def compute_buoyancy(t_vc:float, t_va:float, q_w:float) -> float:
     """
     return constants.CONSTANT_G * ((t_vc - t_va)/t_va - q_w)
 
+@njit()
 def compute_mr_from_sh(sh):
     """Compute water vapor mixing ratio from specific humidity """
     return sh/(1. - sh)
@@ -19,6 +44,7 @@ def compute_mr_from_sh(sh):
 The following equations are used by the Runge-Kutta solver. The first argument
 has to be the independent coordinate and second has to be the dependent one.
 """
+@njit()
 def dwcdz(z, w_c, B, ϵ):
     """
 
@@ -29,7 +55,7 @@ def dwcdz(z, w_c, B, ϵ):
     """
     return (1.0/w_c)*(constants.a_b*B - ϵ*w_c**2)
 
-
+@njit()
 def dqwdz(z, qw, ϵ, dqvcdz, qvc, qva, wc):
     """
 
@@ -42,10 +68,12 @@ def dqwdz(z, qw, ϵ, dqvcdz, qvc, qva, wc):
         return dqw - (1/(constants.τauto*wc))*(qw-constants.q_w_crit)
     return dqw
 
+@njit()
 def sech(x):
     """Numpy does not have a sech function. Defining it here."""
     return 1/np.cosh(x)
 
+@njit()
 def dqidz(z, qi, qw, dqwdz, Tc, dTcdz):
     """
         dqi           dqw                    wc             dTc
@@ -60,6 +88,7 @@ def dqidz(z, qi, qw, dqwdz, Tc, dTcdz):
     arg = (Tc - constants.t_o)/constants.d_t
     return 0.5*(dqwdz*(1-np.tanh(arg)) - qw*sech(arg)**2/constants.d_t*dTcdz)
 
+@njit()
 def dhcdz(z, hc, qi, dqidz, ϵ, ha):
     """
 
@@ -70,13 +99,14 @@ def dhcdz(z, hc, qi, dqidz, ϵ, ha):
     """
     return constants.CONSTANT_LI*dqidz - ϵ*(hc-constants.CONSTANT_LI*qi-ha)
 
+@njit()
 def desatdT(T:float) -> float:
     """
     Derivative of the Claussius Clapyeron equation with respect to T.
     """
     return constants.CONSTANT_LV*compute_esat(T)/(constants.Rv*T**2)
 
-
+@njit()
 def dqvcdz(tc, p, dpdz, dtcdz):
     """
     Below, e_c is saturated vapor pressure.
@@ -87,6 +117,7 @@ def dqvcdz(tc, p, dpdz, dtcdz):
     """
     return constants.ϵd*(-compute_esat(tc)*dpdz/p**2 + desatdT(tc)*dtcdz/p)
 
+@njit()
 def compute_mr_i(tc, qw):
     """
                                   t_c - t_o
@@ -99,15 +130,18 @@ def compute_mr_i(tc, qw):
     f_i = (1 - np.tanh(ang))/2
     return f_i*qw
 
+@njit()
 def dMdz(wc, dwcdz, ρ, dρdz):
     """
 
     """
     return ρ*dwcdz + wc*dρdz
 
+@njit()
 def compute_mflux(p, t_vc, wc):
     return compute_density(p, t_vc)*wc
 
+@njit()
 def Mfunc(wc, dwcdz, ρ, dρdz):
     """
         1    d(ρw_c)
@@ -116,6 +150,7 @@ def Mfunc(wc, dwcdz, ρ, dρdz):
     """
     return 1/wc*dwcdz + 1/ρ*dρdz
 
+@njit()
 def compute_ϵ_entr(ρ:float, dρdz:float, ϵT:float, wc:float,  B:float) -> float:
     """
     Compute ϵ_dyn by calculating
@@ -129,6 +164,7 @@ def compute_ϵ_entr(ρ:float, dρdz:float, ϵT:float, wc:float,  B:float) -> flo
     """
     return max(0.0,0.5*(ϵT + (1.0/ρ)*dρdz + constants.a_b*B/wc**2))
 
+@njit()
 def compute_Tv(t:float, w:float) -> float:
     """
     Compute virtual temperature given temperature and water vapor mixing ratio.
@@ -138,9 +174,11 @@ def compute_Tv(t:float, w:float) -> float:
     """
     return t*(1+0.61*w)
 
+@njit()
 def compute_density(p:float, t:float) -> float:
     return p*100/(t*287)
 
+@njit()
 def compute_TC_from_MSE(mse, z, p):
     """
     Compute the saturation temperature from the moist static energy.
@@ -150,11 +188,53 @@ def compute_TC_from_MSE(mse, z, p):
 
     in: mse_in = input m
     """
-    f = lambda T: compute_mse_sat(T,z,p) - mse
-    ans = fsolve(f, 300)
+    # f = numba.njit(lambda T: compute_mse_sat(T,z,p) - mse)
+    # f = lambda T: compute_mse_sat(T,z,p) - mse
+    # ans = fsolve(f, 300)
+    # root, steps = inverse_quadratic_interpolation(f, 200, 250, 300)#, tolerance=10e-5)
 
-    return ans[0]
+    x0 = 200
+    x1 = 250
+    x2 = 300
 
+    max_iter=50
+    tolerance=1e-5
+    steps_taken = 0
+    while steps_taken < max_iter and abs(x1-x0) > tolerance: # last guess and new guess are v close
+        fx0 = compute_mse_sat(x0,z,p) - mse
+        fx1 = compute_mse_sat(x1,z,p) - mse
+        fx2 = compute_mse_sat(x2,z,p) - mse
+        #
+        # fx0 = f(x0)
+        # fx1 = f(x1)
+        # fx2 = f(x2)
+        L0 = (x0 * fx1 * fx2) / ((fx0 - fx1) * (fx0 - fx2))
+        L1 = (x1 * fx0 * fx2) / ((fx1 - fx0) * (fx1 - fx2))
+        L2 = (x2 * fx1 * fx0) / ((fx2 - fx0) * (fx2 - fx1))
+        new = L0 + L1 + L2
+        x0, x1, x2 = new, x0, x1
+        steps_taken += 1
+    return x0#, steps_taken
+
+    # return root
+
+@njit()
+def inverse_quadratic_interpolation(f, x0:float, x1:float, x2:float,
+                                    max_iter:int=20, tolerance:float=1e-5):
+    steps_taken = 0
+    while steps_taken < max_iter and abs(x1-x0) > tolerance: # last guess and new guess are v close
+        fx0 = f(x0)
+        fx1 = f(x1)
+        fx2 = f(x2)
+        L0 = (x0 * fx1 * fx2) / ((fx0 - fx1) * (fx0 - fx2))
+        L1 = (x1 * fx0 * fx2) / ((fx1 - fx0) * (fx1 - fx2))
+        L2 = (x2 * fx1 * fx0) / ((fx2 - fx0) * (fx2 - fx1))
+        new = L0 + L1 + L2
+        x0, x1, x2 = new, x0, x1
+        steps_taken += 1
+    return x0, steps_taken
+
+@njit()
 def compute_mse(T:float, H:float, P:float, Q:float) -> float:
     """
     Compute the moist static energy from the temperature, height, pressure, and
@@ -177,6 +257,7 @@ def compute_mse(T:float, H:float, P:float, Q:float) -> float:
 
     return mse
 
+@njit()
 def compute_mr_sat(t:float, p:float) -> float:
     """
     Compute the saturated mixing ratio using the temperature and pressure.
@@ -190,6 +271,7 @@ def compute_mr_sat(t:float, p:float) -> float:
     e_sat = compute_esat(t) # convert e_sat Pascals to hectoPascals
     return 0.622 * e_sat/(p-e_sat)
 
+@njit()
 def compute_esat(T:float) -> float:
     """
     Computes the saturation vapor pressure given a tempreature. Clausius-
@@ -202,6 +284,7 @@ def compute_esat(T:float) -> float:
     # return 6.1094*np.exp(17.625*C/(C+243.04)) # <-- From wikipedia
     return 2.53e9*np.exp(-5.42e3/T)
 
+@njit()
 def compute_mse_sat(T:float, H:float, P:float) -> float:
     """
     Compute the saturated moist static energy from the temperature, height, and
@@ -224,5 +307,6 @@ def compute_mse_sat(T:float, H:float, P:float) -> float:
 
     return mse
 
+@njit()
 def compute_sh_from_mr(q):
     return q/(1+q)

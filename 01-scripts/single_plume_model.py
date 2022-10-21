@@ -9,7 +9,7 @@ from plume_functions import *
 from user_inputs import *
 import helpers
 
-# CLIMATOLOGY_CTB = pickle.load(open('./climatology_all.pkl', 'rb'))
+from datetime import datetime
 
 def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
                   t:pd.core.series.Series, sh:pd.core.series.Series,
@@ -46,15 +46,12 @@ def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
 
     """Check whether the input z data has desired discretization"""
     if in_z_meters[1]-in_z_meters[0] > constants.Δz:
-        print("Input data's resolution of",(in_z[1]-in_z[0]),"does not have"
-            " desired resolution. Interpolating to user-specified Δz = ",
+        print("Input data's resolution of",(in_z[1]-in_z[0]),"is lower than"
+            " desired. Interpolating to user-specified Δz = ",
             constants.Δz)
         interp_Δz = constants.Δz
 
-
-    elif in_z_meters[1]-in_z_meters[0] < constants.Δz:
-        print("Input data has higher resolution than desired. Skipping"+
-        " interpolation.")
+    elif in_z_meters[1]-in_z_meters[0] <= constants.Δz:
         interp_Δz = in_z_meters[1]-in_z_meters[0]
 
     z_max = 20e3 # Max cloud height is 20 km
@@ -259,7 +256,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
             """Compute the n+1 element of vertical velocity from the nth one"""
             w_c[n+1,j] = helpers.fd(dwcdz, height[n], w_c[n,j],
-                                    constants.Δz, [B[n,j], entr[n,j]])
+                                    constants.Δz, (B[n,j], entr[n,j]))
 
             if w_c[n+1,j] <= 0.0: break
 
@@ -279,7 +276,8 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
             #         )
             ## END DEBUGGING ###################################################
 
-            while (np.abs(err) > tol and numloops <= max_loops):
+            while 1:
+                # time_start = datetime.now()
 
                 """Compute dq_vc/dz to be used in dqidz"""
                 dqvcdz_val = dqvcdz(t_c[n,j], p[n], dpdz, dtcdz_param)
@@ -292,12 +290,13 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
                 """Compute the n+1 element of in-cloud moist static energy"""
                 mse_c[n+1,j] = helpers.fd(dhcdz, height[n], mse_c[n,j],
-                    constants.Δz, [mr_i[n,j], dqidz_val, entr[n,j], mse_a[n]])
+                    constants.Δz, (mr_i[n,j], dqidz_val, entr[n,j], mse_a[n]))
 
                 """
                 Having computed all of the derivatives, we test the dtcdz_param
                 is correct by checking that the new temperature from mse_c is
                 consistent."""
+
                 Tmse = compute_TC_from_MSE(mse_c[n+1,j], height[n+1], p[n+1])
                 dtcdz_temp = (Tmse-t_c[n,j])/constants.Δz
                 err = dtcdz_temp - dtcdz_param
@@ -313,10 +312,13 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
                 #             )
                 ## END DEBUGGING ###############################################
 
+                # print("t_while-loop = ", (datetime.now() - time_start).total_seconds())
+
                 if (np.abs(err) > tol):
                     dtcdz_param = dtcdz_temp
                 else:
                     t_c[n+1,j] = Tmse
+                    break
 
                 numloops += 1
                 if numloops == max_loops:
@@ -325,12 +327,13 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
                             ", height = ", n*constants.Δz,
                             ", err = ", err,
                             )
+                    break
 
             """Compute the n+1 element of water vapor mixing ratio when the
             while loop converges"""
             mr_w[n+1,j] = helpers.fd(dqwdz, height[n], mr_w[n,j], constants.Δz,
-                            [entr[n,j], dqvcdz_val, mr_vc[n,j], mr_va[n,j],
-                            w_c[n,j]])
+                            (entr[n,j], dqvcdz_val, mr_vc[n,j], mr_va[n,j],
+                            w_c[n,j]))
 
             ## DEBUGGING ########################################################
             # print("\nWhile loop ended. Ending parameters for level ", n,"are: ")

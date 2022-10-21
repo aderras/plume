@@ -1,19 +1,24 @@
 import numpy as np
 import pandas as pd
 from user_inputs import folders
-from user_inputs import constants
+
+import constants
 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 
-## FINITE DIFFERENCE FUNCTIONS ################################################
+from numba import njit
+from numba import jit
 
-def fd(dydx, xn:float, yn:float, h:float, dydxArgs:list=[]):
+## FINITE DIFFERENCE FUNCTIONS ################################################
+@njit()
+def fd(dydx, xn:float, yn:float, h:float, dydxArgs:tuple=()):
     if constants.fd_scheme=="fe": return forward_euler(dydx, xn, yn, h, dydxArgs)
     if constants.fd_scheme=="rk4": return rk4(dydx, xn, yn, h, dydxArgs)
-    if constnats.fd_scheme=="rk5": return rk5(dydx, xn, yn, h, dydxArgs)
+    if constants.fd_scheme=="rk5": return rk5(dydx, xn, yn, h, dydxArgs)
 
-def forward_euler(dydx, xn:float, yn:float, h:float, dydxArgs:list=[]):
+@njit()
+def forward_euler(dydx, xn:float, yn:float, h:float, dydxArgs:tuple=()):
     k1 = dydx(xn, yn, *dydxArgs)
     return yn + k1*h
 
@@ -30,7 +35,8 @@ dydxArgs (optional) = any other arguments to the function f(x, y).
 
 out: a float representing the y_(n+1) value
 """
-def rk4(dydx, xn:float, yn:float, h:float, dydxArgs:list=[]):
+@njit()
+def rk4(dydx, xn:float, yn:float, h:float, dydxArgs:tuple=()):
 
     k1 = dydx(xn, yn, *dydxArgs)
     k2 = dydx(xn+0.5*h, yn+0.5*h*k1, *dydxArgs)
@@ -41,7 +47,8 @@ def rk4(dydx, xn:float, yn:float, h:float, dydxArgs:list=[]):
 
 """Butcher's 5th order RK routine. For reference see pp. 735 of
 Numerical Methods for Engineers by Chapra."""
-def rk5(dydx, xn:float, yn:float, h:float, dydxArgs:list=[]):
+@njit()
+def rk5(dydx, xn:float, yn:float, h:float, dydxArgs:tuple=()):
 
     k1 = dydx(xn, yn, *dydxArgs)
     k2 = dydx(xn + 0.25*h, yn + 0.25*h*k1, *dydxArgs)
@@ -52,9 +59,11 @@ def rk5(dydx, xn:float, yn:float, h:float, dydxArgs:list=[]):
 
     return yn + (7.0*k1 + 32.0*k3 + 12.0*k4 + 32.0*k5 + 7.0*k6)*h/90.0
 
+
 """
 Compute the derivative of a discrete set of points at index n.
 """
+# @njit()
 def ddz(vec, n, dn, scheme="central"):
 
     if vec[n]==np.nan: return np.nan
@@ -71,9 +80,10 @@ def ddz(vec, n, dn, scheme="central"):
 
 ## PLOTTING FUNCTIONS #########################################################
 
-def plot_y_vs_x(x_data_to_plot, y_data_to_plot, entrT=[], x_label="", y_label="",
-                save_path="", plot_mse_a=[], show_plot=False,
-                show_legend=False):
+def plot_y_vs_x(x_data_to_plot, y_data_to_plot, entrT=[], x_label="",
+                y_label="", save_path="", plot_mse_a=[], show_plot=False,
+                show_legend=False, xticks_rotation=0, invert_y_axis=False,
+                show_grid=False):
 
     fig = plt.figure(figsize=(6, 6))
 
@@ -84,38 +94,46 @@ def plot_y_vs_x(x_data_to_plot, y_data_to_plot, entrT=[], x_label="", y_label=""
         y_data_to_plot = np.tile(y_data_to_plot[:,0], (x_data_to_plot.shape[1],1))
         y_data_to_plot = y_data_to_plot.transpose()
 
-    if entrT==[] and len(x_data_to_plot.shape)>1:
+    if entrT==[] and x_data_to_plot.shape[1]>1:
         print("No labels given for multi-line plot.")
 
-    if len(entrT)!=0.0:
+    if entrT==[]:
+        for i in range(x_data_to_plot.shape[1]):
+            ax1.plot(x_data_to_plot[:,i], y_data_to_plot[:,i], color="k")
+    else:
         for i, ϵT in enumerate(entrT):
             c = next(color)
             ax1.plot(x_data_to_plot[:,i], y_data_to_plot[:,i], color=c, label=ϵT)
-    else:
-        ax1.plot(x_data_to_plot, y_data_to_plot)
-
-    if show_legend: plt.legend(loc=0, title="ϵT")
 
     plt.xlabel(x_label)
     plt.ylabel(y_label)
+    plt.xticks(rotation=xticks_rotation)
 
     if len(plot_mse_a)!=0.0:
         ax1.plot(plot_mse_a[0][:,0], y_data_to_plot[:,0], color="k")
         ax1.plot(plot_mse_a[1][:,0], y_data_to_plot[:,0], color="k", linestyle="--")
 
-    if save_path!="": plt.savefig(save_path)
+    if show_legend: plt.legend(loc=0, title="ϵT")
+
+    if show_grid: plt.grid(linestyle='--', linewidth=0.4)
+
+    if invert_y_axis: ax1.invert_yaxis()
+
+    if save_path!="": plt.savefig(save_path, bbox_inches="tight")
 
     if show_plot: plt.show()
 
-def plot_row_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="",
-                save_path="", plot_mse_a=False, same_scale=False, show_legend=True,
-                show_grid=False, invert_y_axis=False, xticks_rotation=0):
+def plot_row_y_vs_x(x_data_to_plot, y_data_to_plot, entrT=[], x_label="",
+                y_label="", save_path="", plot_mse_a=False, same_scale=False,
+                show_legend=False, show_grid=False, invert_y_axis=False,
+                xticks_rotation=0):
 
     nplots = len(x_data_to_plot)
     fig = plt.figure(figsize=(5*nplots, 5))
 
-    if len(y_data_to_plot.shape)==1:
-        y_data_to_plot = np.tile(y_data_to_plot, (len(entrT),1)).transpose()
+    if y_data_to_plot.shape != x_data_to_plot[0].shape:
+        y_data_to_plot = np.tile(y_data_to_plot[:,0], (x_data_to_plot[0].shape[1],1))
+        y_data_to_plot = y_data_to_plot.transpose()
 
     axs = [[] for k in range(nplots)]
 
@@ -124,12 +142,20 @@ def plot_row_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="
         color = iter(cm.rainbow(np.linspace(0, 1, len(entrT))))
 
         axs[k] = plt.subplot(1,nplots,k+1)
-        for i, ϵT in enumerate(entrT):
-            c = next(color)
-            axs[k].plot(x_data_to_plot[k][:,i], y_data_to_plot[:,i], color=c, label=ϵT)
+
+        if entrT==[] and x_data_to_plot[k].shape[1]>1:
+            print("No labels given for multi-line plot.")
+
+        if entrT==[]:
+            for i in range(x_data_to_plot[k].shape[1]):
+                axs[k].plot(x_data_to_plot[k][:,i], y_data_to_plot[:,i], color="k")
+        else:
+            for i, ϵT in enumerate(entrT):
+                c = next(color)
+                axs[k].plot(x_data_to_plot[k][:,i], y_data_to_plot[:,i], color=c, label=ϵT)
+
         if show_legend: plt.legend(loc=0, title="ϵT")
-        # axs[k].set_yscale("log")
-        plt.xlabel(x_label)
+        plt.xlabel(x_label[k])
         plt.ylabel(y_label)
         plt.xticks(rotation=xticks_rotation)
 
@@ -154,10 +180,12 @@ def plot_row_y_vs_x(x_data_to_plot, y_data_to_plot, entrT, x_label="", y_label="
             axs[k].set_xlim(xmin1,xmax1)
             axs[k].set_ylim(ymin1,ymax1)
 
-            if invert_y_axis: axs[k].invert_yaxis()
+    for k in range(nplots):
+        if invert_y_axis: axs[k].invert_yaxis()
+
+    plt.tight_layout()
 
     if save_path!="": plt.savefig(save_path, bbox_inches="tight")
-
 
 def plot_y_vs_x_weighted(x_data_to_plot, y_data_to_plot, y_data_weighted,
         entrT=[], x_label="",
@@ -199,7 +227,6 @@ def plot_y_vs_x_weighted(x_data_to_plot, y_data_to_plot, y_data_weighted,
     if save_path!="": plt.savefig(save_path, bbox_inches="tight")
 
     if show_plot: plt.show()
-
 
 ## IMPORT AND EXPORT FUNCTIONS #################################################
 

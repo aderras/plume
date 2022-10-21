@@ -14,7 +14,6 @@ if __name__ == "__main__":
     helpers.save_dict_elems_as_csv(sol)
     helpers.save_dict_elems_as_csv(sounding)
 
-
-    sol_weighted = wf.get_weighted_profile(sol, sounding, cth=10)
+    sol_weighted = wf.get_weighted_profile(sol, sounding, cth=10.0)
 
     helpers.save_dict_elems_as_csv(sol_weighted, suffix="_weighted")

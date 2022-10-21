@@ -1,10 +1,10 @@
 import numpy as np
-from user_inputs import constants
+import constants
 import pickle
 from scipy.interpolate import interp1d
 
 
-def import_climatology_ctb(in_cth=10):
+def import_climatology_ctb(in_cth=10.0):
     """Getting a climatological CTB given a CTH"""
     CLIMATOLOGY_CTB = pickle.load(open('/home/amel/Documents/plume-model/02-data/in/climatology_all.pkl','rb'))
 
@@ -26,7 +26,7 @@ def compute_ta(height, temperature, cth):
     ta = temperature[ind]
     return ta
 
-def get_weighted_profile(in_dict, sounding, cth=10):
+def get_weighted_profile(in_dict, sounding, cth=10.0):
     ''' Wrapper code to run the weighting of SPM_outputs given the spm_output_dictionary
     input:
         single plume model output from cm.run_single_plume(), Should be a dictionary
