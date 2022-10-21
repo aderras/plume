@@ -4,26 +4,30 @@ import numpy as np
 import helpers
 from datetime import datetime
 
+
 if __name__ == "__main__":
 
     date_choice = 0
 
     ## The following has to match what is in run_plume_wyoming.py ##############
-    stations_land = ["82532","61052"] # [Manicore, DRRN Niamey-Aero]
-    stations_water = ["47991","94299"] # [RJAM Minamitorishima, Willis Island]
+    stations_land = ["82532"]#,"61052"] # [Manicore, DRRN Niamey-Aero]
+    stations_water = []#"47991","94299"] # [RJAM Minamitorishima, Willis Island]
 
     station = stations_land[0]
 
     """Create a list of dates to acquire data"""
-    date_start = datetime(2022,9,1,0)
-    date_end = datetime(2022,9,30,0)
+    date_start = datetime(2022,7,1,12)
+    date_end = datetime(2022,7,30,12)
     dates = pd.date_range(date_start, date_end)
     ############################################################################
+
+    """Check that file exists before continuing."""
 
     dir = folders.DIR_DATA_OUTPUT
     date_str = dates[date_choice].strftime('%Y%m%d%H')
     fname_suffix = "_" + str(station)  + "_dt" + date_str + \
                    "_dz" + str(constants.Δz)
+
 
     obs_list = ["entr", "w_c", "q_w", "mse_c", "B", "z", "w_c_weighted",
                 "entr_weighted", "entrT",  "mse_a",  "mse_as", "p", "t", "sh"]
