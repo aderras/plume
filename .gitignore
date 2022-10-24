@@ -2,4 +2,6 @@
 probably-trash/
 derivations.nb
 notes.md
-
+01-scripts/test_helpers.py
+01-scripts/test_residual.py
+01-scripts/test_timing.py
