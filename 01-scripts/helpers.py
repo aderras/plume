@@ -68,8 +68,10 @@ def ddz(vec, n, dn, scheme="central"):
 
     if vec[n]==np.nan: return np.nan
 
-    if n==0 or (n>0 and vec[n-1]==np.nan): scheme="forwards"
-    if n==len(vec)-1 or (n<len(vec)-1 and vec[n+1]==np.nan): scheme="backwards"
+    if n==0 or (n>0 and vec[n-1]==np.nan):
+        return (vec[n+1] - vec[n])/dn
+    if n==len(vec)-1 or (n<len(vec)-1 and vec[n+1]==np.nan):
+        return (vec[n] - vec[n-1])/dn
 
     if scheme=="forwards":
         return (vec[n+1] - vec[n])/dn
@@ -77,6 +79,7 @@ def ddz(vec, n, dn, scheme="central"):
         return (vec[n] - vec[n-1])/dn
     else:
         return (vec[n+1] - vec[n-1])/(2.0*dn)
+
 
 ## PLOTTING FUNCTIONS #########################################################
 
@@ -240,6 +243,12 @@ def save_dict_elems_as_csv(dict_of_data, dir=folders.DIR_DATA_OUTPUT, suffix="")
     for k,v in dict_of_data.items():
         data_df = pd.DataFrame(v)
         data_df.to_csv(dir+"/"+k+suffix+".csv", index=False)
+
+def save_vec_elems_as_csv(vec_of_data, vec_of_names, dir=folders.DIR_DATA_OUTPUT, suffix=""):
+    for i,n in enumerate(vec_of_names):
+        data_df = pd.DataFrame(vec_of_data[i])
+        data_df.to_csv(dir+"/"+n+suffix+".csv", index=False)
+
 
 def import_ellingson_sounding():
 
