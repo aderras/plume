@@ -2,7 +2,6 @@
 import numpy as np
 from numpy.testing._private.utils import assert_
 from scipy.interpolate import interp1d
-import pickle
 import pandas as pd
 
 from plume_functions import *
@@ -46,9 +45,9 @@ def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
 
     """Check whether the input z data has desired discretization"""
     if in_z_meters[1]-in_z_meters[0] > constants.Δz:
-        print("Input data's resolution of",(in_z[1]-in_z[0]),"is lower than"
-            " desired. Interpolating to user-specified Δz = ",
-            constants.Δz)
+        # print("Input data's resolution of",(in_z[1]-in_z[0]),"is lower than"
+        #     " desired. Interpolating to user-specified Δz = ",
+        #     Δz)
         interp_Δz = constants.Δz
 
     elif in_z_meters[1]-in_z_meters[0] <= constants.Δz:
@@ -84,21 +83,22 @@ def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
     if (mse_sat is None):
         mse_as = compute_mse_sat(t, z_meters, p)
 
-    """Save sounding data as a dictionary"""
-    sounding = {}
-    sounding["z"] = z_meters
-    sounding["p"] = p
-    sounding["t"] = t
-    sounding["sh"] = sh
-    sounding["mse_a"] = mse_a
-    sounding["mse_as"] = mse_as
+    # """Save sounding data as a dictionary"""
+    # sounding = {}
+    # sounding["z"] = z_meters
+    # sounding["p"] = p
+    # sounding["t"] = t
+    # sounding["sh"] = sh
+    # sounding["mse_a"] = mse_a
+    # sounding["mse_as"] = mse_as
 
-    return sounding
+    return [z_meters, p, t, sh, mse_a, mse_as]
 
 def find_index_lcl(t, height, p, sh, z_surf):
     # finding the LCL
     i_lcl = -1
     Γd = 9.8/1005.0 # Dry adiabatic laps rate in Kelvin/meter
+    Δz = height[1]-height[0]
 
     s_len = len(height) # Discretization in Z
 
@@ -108,7 +108,7 @@ def find_index_lcl(t, height, p, sh, z_surf):
     # Search for the LCL by looping over all of the z values
     for i in np.arange(t_start_ind+1, s_len):
         # air parcel temperature at level if risen by dry adiabatic:
-        temp_0 = t[t_start_ind] - Γd*constants.Δz*i
+        temp_0 = t[t_start_ind] - Γd*Δz*i
 
         # saturation mixing ratio for the air parcel, at the given level
         mr_sat_0 = compute_mr_sat(temp_0,p[i])
@@ -140,12 +140,20 @@ def initialize_storage(s_len, e_len):
     t_va = np.full((s_len,e_len), np.nan) # ambient virtual temperature
     t_vc = np.full((s_len,e_len), np.nan) #
 
-    return [w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,mr_va,mr_vc,t_va,t_vc]
+    ρ = np.zeros(s_len)
+    dρdz = np.zeros(s_len)
+    dpdz = np.zeros(s_len)
 
-def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
+    return [w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,mr_va,mr_vc,t_va,t_vc,ρ,dρdz,dpdz]
+
+def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
 
     # print("Starting plume run...")
 
+    w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,mr_va,mr_vc,t_va,t_vc,ρ,dρdz,dpdz = storage
+    height, p, t, sh, mse_a, mse_as = sounding
+
+    Δz = height[1]-height[0]
     """
     p = pressure [hPa]
     t = temperature [K]
@@ -171,15 +179,18 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
     """
 
-    height = sounding["z"]
-    p = sounding["p"]
-    t = sounding["t"]
-    sh = sounding["sh"]
-    mse_a = sounding["mse_a"]
-    mse_as = sounding["mse_as"]
+    # height = sounding["z"]
+    # p = sounding["p"]
+    # t = sounding["t"]
+    # sh = sounding["sh"]
+    # mse_a = sounding["mse_a"]
+    # mse_as = sounding["mse_as"]
+
 
     """Calculate density at every height"""
-    ρ = [compute_density(p[i],t[i]) for i in range(len(p))]
+    for i in range(len(ρ)): ρ[i] = compute_density(p[i],t[i])
+    for i in range(len(dρdz)): dρdz[i] = helpers.ddz(ρ,i,Δz)
+    for i in range(len(dpdz)): dpdz[i] = helpers.ddz(p,i,Δz)
 
     entrT_list = constants.entrT_list
 
@@ -190,8 +201,8 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
     s_len = len(height)
     e_len = len(entrT_list)
 
-    w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,\
-        mr_va,mr_vc,t_va,t_vc = initialize_storage(s_len,e_len)
+    # w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,\
+    #     mr_va,mr_vc,t_va,t_vc = initialize_storage(s_len,e_len)
 
     """Initialize values at the LCL"""
     mr_w[i_lcl-1,:] = 0.0
@@ -227,18 +238,16 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
             entrainment and detrainment.
             """
             if n==i_lcl-1 and assume_entr==True:
-                dρdz = helpers.ddz(ρ, n, constants.Δz)
-                entr[n,j] = compute_ϵ_entr(ρ[n], dρdz, entrT, w_c[n,j], B[n,j])
+                entr[n,j] = compute_ϵ_entr(ρ[n], dρdz[n], entrT, w_c[n,j], B[n,j])
                 detr[n,j] = entrT
             elif n==i_lcl-1 and assume_entr==False:
                 entr[n,j] = entrT
                 detr[n,j] = entrT
             else:
-                dmdz = helpers.ddz(mflux[:,j], n, constants.Δz, "backwards")
+                dmdz = helpers.ddz(mflux[:,j], n, Δz, "backwards")
 
                 if dmdz > 0.0:
-                    dρdz = helpers.ddz(ρ, n, constants.Δz)
-                    entr[n,j] = compute_ϵ_entr(ρ[n], dρdz, entrT, w_c[n,j], B[n,j])
+                    entr[n,j] = compute_ϵ_entr(ρ[n], dρdz[n], entrT, w_c[n,j], B[n,j])
                     detr[n,j] = entrT
                 else:
                     entr[n,j] = entrT
@@ -256,7 +265,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
             """Compute the n+1 element of vertical velocity from the nth one"""
             w_c[n+1,j] = helpers.fd(dwcdz, height[n], w_c[n,j],
-                                    constants.Δz, (B[n,j], entr[n,j]))
+                                    Δz, (B[n,j], entr[n,j]))
 
             if w_c[n+1,j] <= 0.0: break
 
@@ -265,8 +274,6 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
             err = 10.0
             numloops = 0
             max_loops = 30
-
-            dpdz = helpers.ddz(p,n,constants.Δz)
 
             ## DEBUGGING #######################################################
             # print("predicted value = ", w_c[n+1,j],
@@ -280,7 +287,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
                 # time_start = datetime.now()
 
                 """Compute dq_vc/dz to be used in dqidz"""
-                dqvcdz_val = dqvcdz(t_c[n,j], p[n], dpdz, dtcdz_param)
+                dqvcdz_val = dqvcdz(t_c[n,j], p[n], dpdz[n], dtcdz_param)
 
                 dqwdz_val = dqwdz(height[n], mr_w[n,j], entr[n,j], dqvcdz_val,
                                 mr_vc[n,j], mr_va[n,j], w_c[n,j])
@@ -290,7 +297,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
 
                 """Compute the n+1 element of in-cloud moist static energy"""
                 mse_c[n+1,j] = helpers.fd(dhcdz, height[n], mse_c[n,j],
-                    constants.Δz, (mr_i[n,j], dqidz_val, entr[n,j], mse_a[n]))
+                    Δz, (mr_i[n,j], dqidz_val, entr[n,j], mse_a[n]))
 
                 """
                 Having computed all of the derivatives, we test the dtcdz_param
@@ -298,7 +305,7 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
                 consistent."""
 
                 Tmse = compute_TC_from_MSE(mse_c[n+1,j], height[n+1], p[n+1])
-                dtcdz_temp = (Tmse-t_c[n,j])/constants.Δz
+                dtcdz_temp = (Tmse-t_c[n,j])/Δz
                 err = dtcdz_temp - dtcdz_param
 
                 ## DEBUGGING ###################################################
@@ -324,14 +331,14 @@ def run_single_plume(sounding, z_surf=0.0, assume_entr=True):
                 if numloops == max_loops:
                     print("\nReached maximum loop for entrT = ", entrT,
                             ", level = ", n,
-                            ", height = ", n*constants.Δz,
+                            ", height = ", n*Δz,
                             ", err = ", err,
                             )
                     break
 
             """Compute the n+1 element of water vapor mixing ratio when the
             while loop converges"""
-            mr_w[n+1,j] = helpers.fd(dqwdz, height[n], mr_w[n,j], constants.Δz,
+            mr_w[n+1,j] = helpers.fd(dqwdz, height[n], mr_w[n,j], Δz,
                             (entr[n,j], dqvcdz_val, mr_vc[n,j], mr_va[n,j],
                             w_c[n,j]))
 

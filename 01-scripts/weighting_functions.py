@@ -36,7 +36,7 @@ def get_weighted_profile(in_dict, sounding, cth=10.0):
     '''
 
     ctb = import_climatology_ctb(cth)
-    ta = compute_ta(sounding["z"], sounding["t"], cth)
+    ta = compute_ta(sounding[0], sounding[2], cth)
     tc = ta * ctb + ta
 
     zt = cth
@@ -49,7 +49,7 @@ def get_weighted_profile(in_dict, sounding, cth=10.0):
     m_detrM = in_dict["detr"]
     m_entr = in_dict["entrT"]
 
-    m_z = sounding["z"]/1e3 # Have to convert to km
+    m_z = sounding[0]/1e3 # Have to convert to km
 
     # makding sure the division is only done for values that are valid
     valid_ind = (~np.isnan(m_tvc)) & (~np.isnan(m_tva)) & ~(m_tva == 0.)
