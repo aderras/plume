@@ -6,7 +6,6 @@ import numba
 from numba import njit
 from numba import jit
 
-# import constants
 import constants
 
 @njit()
@@ -33,7 +32,7 @@ def compute_buoyancy(t_vc:float, t_va:float, q_w:float) -> float:
         B = g * -------------- - q_w
                     T_va
     """
-    return constants.CONSTANT_G * ((t_vc - t_va)/t_va - q_w)
+    return constants.g * ((t_vc - t_va)/t_va - q_w)
 
 @njit()
 def compute_mr_from_sh(sh):
@@ -97,14 +96,14 @@ def dhcdz(z, hc, qi, dqidz, ϵ, ha):
          dz         dz
 
     """
-    return constants.CONSTANT_LI*dqidz - ϵ*(hc-constants.CONSTANT_LI*qi-ha)
+    return constants.Li*dqidz - ϵ*(hc-constants.Li*qi-ha)
 
 @njit()
 def desatdT(T:float) -> float:
     """
     Derivative of the Claussius Clapyeron equation with respect to T.
     """
-    return constants.CONSTANT_LV*compute_esat(T)/(constants.Rv*T**2)
+    return constants.Lv*compute_esat(T)/(constants.Rv*T**2)
 
 @njit()
 def dqvcdz(tc, p, dpdz, dtcdz):
@@ -125,7 +124,6 @@ def compute_mr_i(tc, qw):
                                      d_t
     Temperatures have to be in Kelvin.
     """
-    # ang = ((tc - 273.15) - constants.t_o)/constants.d_t
     ang = (tc - constants.t_o)/constants.d_t
     f_i = (1 - np.tanh(ang))/2
     return f_i*qw
@@ -188,51 +186,26 @@ def compute_TC_from_MSE(mse, z, p):
 
     in: mse_in = input m
     """
-    # f = numba.njit(lambda T: compute_mse_sat(T,z,p) - mse)
-    # f = lambda T: compute_mse_sat(T,z,p) - mse
-    # ans = fsolve(f, 300)
-    # root, steps = inverse_quadratic_interpolation(f, 200, 250, 300)#, tolerance=10e-5)
-
     x0 = 200
     x1 = 250
     x2 = 300
 
-    max_iter=50
-    tolerance=1e-5
+    max_iter = 50
+    tolerance = 1e-5
     steps_taken = 0
-    while steps_taken < max_iter and abs(x1-x0) > tolerance: # last guess and new guess are v close
+    while steps_taken < max_iter and abs(x1-x0) > tolerance:
         fx0 = compute_mse_sat(x0,z,p) - mse
         fx1 = compute_mse_sat(x1,z,p) - mse
         fx2 = compute_mse_sat(x2,z,p) - mse
-        #
-        # fx0 = f(x0)
-        # fx1 = f(x1)
-        # fx2 = f(x2)
+
         L0 = (x0 * fx1 * fx2) / ((fx0 - fx1) * (fx0 - fx2))
         L1 = (x1 * fx0 * fx2) / ((fx1 - fx0) * (fx1 - fx2))
         L2 = (x2 * fx1 * fx0) / ((fx2 - fx0) * (fx2 - fx1))
         new = L0 + L1 + L2
         x0, x1, x2 = new, x0, x1
         steps_taken += 1
-    return x0#, steps_taken
+    return x0
 
-    # return root
-
-@njit()
-def inverse_quadratic_interpolation(f, x0:float, x1:float, x2:float,
-                                    max_iter:int=20, tolerance:float=1e-5):
-    steps_taken = 0
-    while steps_taken < max_iter and abs(x1-x0) > tolerance: # last guess and new guess are v close
-        fx0 = f(x0)
-        fx1 = f(x1)
-        fx2 = f(x2)
-        L0 = (x0 * fx1 * fx2) / ((fx0 - fx1) * (fx0 - fx2))
-        L1 = (x1 * fx0 * fx2) / ((fx1 - fx0) * (fx1 - fx2))
-        L2 = (x2 * fx1 * fx0) / ((fx2 - fx0) * (fx2 - fx1))
-        new = L0 + L1 + L2
-        x0, x1, x2 = new, x0, x1
-        steps_taken += 1
-    return x0, steps_taken
 
 @njit()
 def compute_mse(T:float, H:float, P:float, Q:float) -> float:
@@ -245,12 +218,12 @@ def compute_mse(T:float, H:float, P:float, Q:float) -> float:
     out: mse = moist static energy (joules?)
     """
 
-    Cp = constants.CONSTANT_CP
+    Cp = constants.Cp
 
     mse_internal = Cp*T
-    mse_geo = H*constants.CONSTANT_G
+    mse_geo = H*constants.g
 
-    L = constants.CONSTANT_LV
+    L = constants.Lv
 
     mse_water = L*Q
     mse = mse_internal + mse_geo  +  mse_water
@@ -280,8 +253,6 @@ def compute_esat(T:float) -> float:
     in: T = temperature in Kelvin
     out: e_sat = saturation vapor pressure in hPa
     """
-    # C = T - 273.15 # Convert temperature to celsius
-    # return 6.1094*np.exp(17.625*C/(C+243.04)) # <-- From wikipedia
     return 2.53e9*np.exp(-5.42e3/T)
 
 @njit()
@@ -293,14 +264,14 @@ def compute_mse_sat(T:float, H:float, P:float) -> float:
     in: T = temperature in Kelvin, H = height in meters, P = pressure in hPa,
     out: mse = moist static energy (joules?)
     """
-    Cp = constants.CONSTANT_CP
+    Cp = constants.Cp
 
     mse_internal = Cp*T
-    mse_geo = H*constants.CONSTANT_G
+    mse_geo = H*constants.g
 
     # calculate q_sat for given temperature
     qsat = compute_mr_sat(T,P)
-    L = constants.CONSTANT_LV
+    L = constants.Lv
 
     mse_water = L*qsat
     mse = mse_internal + mse_geo  +  mse_water

@@ -26,7 +26,7 @@ def compute_ta(height, temperature, cth):
     ta = temperature[ind]
     return ta
 
-def get_weighted_profile(in_dict, sounding, cth=10.0):
+def get_weighted_profile(results, sounding, cth=10.0):
     ''' Wrapper code to run the weighting of SPM_outputs given the spm_output_dictionary
     input:
         single plume model output from cm.run_single_plume(), Should be a dictionary
@@ -35,21 +35,27 @@ def get_weighted_profile(in_dict, sounding, cth=10.0):
         ta -- ambient temperature in K
     '''
 
+    z_sounding = sounding[0]
+    t_sounding = sounding[2]
+
     ctb = import_climatology_ctb(cth)
-    ta = compute_ta(sounding[0], sounding[2], cth)
+    ta = compute_ta(z_sounding, t_sounding, cth)
     tc = ta * ctb + ta
 
     zt = cth
     dtt = (tc-ta)/ta
 
-    m_w = in_dict["w_c"]
-    m_tvc = in_dict["t_vc"]
-    m_tva = in_dict["t_va"]
-    m_entrM = in_dict["entr"]
-    m_detrM = in_dict["detr"]
-    m_entr = in_dict["entrT"]
+    w_c, mse_c, mr_w, t_c, B, mflux, entr, detr, t_va, t_vc, mr_i, \
+            mr_va, mr_vc, entrT_list = results
 
-    m_z = sounding[0]/1e3 # Have to convert to km
+    m_w = w_c
+    m_tvc = t_vc
+    m_tva = t_va
+    m_entrM = entr
+    m_detrM = detr
+    m_entr = entrT_list
+
+    m_z = z_sounding/1e3 # Have to convert to km
 
     # makding sure the division is only done for values that are valid
     valid_ind = (~np.isnan(m_tvc)) & (~np.isnan(m_tva)) & ~(m_tva == 0.)

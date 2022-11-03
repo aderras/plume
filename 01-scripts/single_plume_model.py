@@ -24,7 +24,6 @@ def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
     1D array of temperature in K, sh = 1D array of specific humidity in kg/kg.
     out:
     """
-
     # convert all the data into input arrays
     in_z = np.array(z, dtype=float)
     in_z_meters = in_z
@@ -83,17 +82,18 @@ def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
     if (mse_sat is None):
         mse_as = compute_mse_sat(t, z_meters, p)
 
-    # """Save sounding data as a dictionary"""
-    # sounding = {}
-    # sounding["z"] = z_meters
-    # sounding["p"] = p
-    # sounding["t"] = t
-    # sounding["sh"] = sh
-    # sounding["mse_a"] = mse_a
-    # sounding["mse_as"] = mse_as
+    ρ = np.zeros(n_z)
+    dρdz = np.zeros(n_z)
+    dpdz = np.zeros(n_z)
 
-    return [z_meters, p, t, sh, mse_a, mse_as]
+    """Calculate density at every height"""
+    for i in range(len(ρ)): ρ[i] = compute_density(p[i],t[i])
+    for i in range(len(dρdz)): dρdz[i] = helpers.ddz(ρ,i,interp_Δz)
+    for i in range(len(dpdz)): dpdz[i] = helpers.ddz(p,i,interp_Δz)
 
+    return (z_meters, p, t, sh, mse_a, mse_as, ρ, dρdz, dpdz)
+
+@njit()
 def find_index_lcl(t, height, p, sh, z_surf):
     # finding the LCL
     i_lcl = -1
@@ -118,6 +118,7 @@ def find_index_lcl(t, height, p, sh, z_surf):
             return i
     return -1
 
+@njit()
 def initialize_storage(s_len, e_len):
     # zero'ing out all the variables
     mr_w = np.full((s_len,e_len), np.nan) # condensed water
@@ -140,19 +141,15 @@ def initialize_storage(s_len, e_len):
     t_va = np.full((s_len,e_len), np.nan) # ambient virtual temperature
     t_vc = np.full((s_len,e_len), np.nan) #
 
-    ρ = np.zeros(s_len)
-    dρdz = np.zeros(s_len)
-    dpdz = np.zeros(s_len)
+    return (w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,mr_va,mr_vc,t_va,t_vc)
 
-    return [w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,mr_va,mr_vc,t_va,t_vc,ρ,dρdz,dpdz]
-
+@njit()
 def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
 
     # print("Starting plume run...")
 
-    w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,mr_va,mr_vc,t_va,t_vc,ρ,dρdz,dpdz = storage
-    height, p, t, sh, mse_a, mse_as = sounding
-
+    w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,mr_va,mr_vc,t_va,t_vc = storage
+    height, p, t, sh, mse_a, mse_as,ρ,dρdz,dpdz = sounding
     Δz = height[1]-height[0]
     """
     p = pressure [hPa]
@@ -178,31 +175,14 @@ def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
     B = buoyancy [N/kg] = [m/s^2]
 
     """
-
-    # height = sounding["z"]
-    # p = sounding["p"]
-    # t = sounding["t"]
-    # sh = sounding["sh"]
-    # mse_a = sounding["mse_a"]
-    # mse_as = sounding["mse_as"]
-
-
-    """Calculate density at every height"""
-    for i in range(len(ρ)): ρ[i] = compute_density(p[i],t[i])
-    for i in range(len(dρdz)): dρdz[i] = helpers.ddz(ρ,i,Δz)
-    for i in range(len(dpdz)): dpdz[i] = helpers.ddz(p,i,Δz)
-
     entrT_list = constants.entrT_list
 
     i_lcl = find_index_lcl(t, height, p, sh, z_surf)
-
+    assert i_lcl != -1
     # print("Found i_lcl = ", i_lcl, ", height of ", height[i_lcl])
 
     s_len = len(height)
     e_len = len(entrT_list)
-
-    # w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,\
-    #     mr_va,mr_vc,t_va,t_vc = initialize_storage(s_len,e_len)
 
     """Initialize values at the LCL"""
     mr_w[i_lcl-1,:] = 0.0
@@ -270,7 +250,7 @@ def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
             if w_c[n+1,j] <= 0.0: break
 
             dtcdz_param = -0.01 # Arbitrary guess that gets updated
-            tol = constants.tol
+            tol = constants.dtcdz_tol
             err = 10.0
             numloops = 0
             max_loops = 30
@@ -354,8 +334,5 @@ def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
 
         if n<s_len: w_c[n+1,j]=np.nan
 
-    # print("Completed plume run.")
-    return {"w_c":w_c, "mse_c":mse_c, "q_w":mr_w, "t_c":t_c, "B":B,
-            "mflux": mflux, "entr":entr, "detr":detr, "t_va":t_va,
-            "t_vc":t_vc, "q_i":mr_i, "q_va":mr_va, "q_vc":mr_vc,
-            "entrT":entrT_list, "rho":ρ}
+    return (w_c, mse_c, mr_w, t_c, B, mflux, entr, detr, t_va, t_vc, mr_i, \
+            mr_va, mr_vc, entrT_list)

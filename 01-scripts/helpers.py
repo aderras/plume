@@ -63,7 +63,7 @@ def rk5(dydx, xn:float, yn:float, h:float, dydxArgs:tuple=()):
 """
 Compute the derivative of a discrete set of points at index n.
 """
-# @njit()
+@njit()
 def ddz(vec, n, dn, scheme="central"):
 
     if vec[n]==np.nan: return np.nan
