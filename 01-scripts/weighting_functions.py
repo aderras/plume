@@ -3,6 +3,8 @@ import constants
 import pickle
 from scipy.interpolate import interp1d
 from numba import njit
+import helpers
+
 
 @njit()
 def compute_ta(height, temperature, cth):
@@ -22,78 +24,112 @@ def compute_ta(height, temperature, cth):
     return ta
 
 @njit()
-def integrate_trapezoidal(f, h, n):
-    """
-    Compute the discrete integral of a vector f using the trapezoidal rule
-
-    in: f is a 1D array, h is a float representing the horizontal spacing, n is
-    an integer representing the length of f.
-
-    out: a float representing the integral of the vector.
-    """
-    s = 0.0
-    s += f[0]/2.0
-    for i in range(1, n-1):
-        s += f[i]
-    s += f[-1]/2.0
-    return s * h
-
-@njit()
 def compute_weighted_prob(m_ΔT, m_wc, m_z, cth, tc, ta):
     """
-    Compute Eq. (21) of ML16.
+    This function evaluates Eq. (21) of ML16.
 
+    p_likelihood = p(z_T, ΔT_T | ϵ_{tur,j})
+    p_priori = p(ϵ_{tur,j})
 
     """
 
     Δz = m_z[1]-m_z[0] # Get the horizontal spacing, Δz
     num_z = m_ΔT.shape[0] # Get the number of levels that we consider
-    num_entr = m_ΔT.shape[1] # Get the number of levels that we consider
+    num_entr = m_ΔT.shape[1] # Get the number of entrainments that we consider
 
     ############################################################################
     # Begin probability computation (calculating Eq. (21))
 
-    ## Arguments of the exponential function :
+    ## Arguments of the exponential function:
     σz = 1.0 # Assume error in z is 1 km.
-    σΔT = (1.0/ta) # Assume error in ΔT is 1 Kelvin/temperature at the top
+    σΔT = (1.0/ta) # Assume error in ΔT is 1/temperature at the top
     zt = cth # Cloud top height
     ΔT = (tc-ta)/ta # Normalized pressure difference of at the top of the cloud
 
+    p_norm = 0.0 # Normalization constant for the probability
 
-    integrand = np.zeros(num_z)
-    p_norm = 0.0
-    p_arr = np.zeros(num_z)
+    # Initialize temporary storage
+    integrand = np.zeros(num_z) # The integrand
+    m_dΔTidz = np.zeros(num_z)
+    m_wi = np.zeros(num_z)
+    m_ΔTi = np.zeros(num_z)
+
+    p_likelihood = np.zeros(num_entr)
+    p_posteriori = np.zeros(num_entr)
+    p_priori = np.zeros(num_entr)
+
+    integral = 0.0
 
     # loop through the entrainment rate
     for entr_ind in np.arange(num_entr):
 
-        # Get the vertical velocity and the ΔT for this entrainment rate
-        m_wi = m_wc[:, entr_ind]
-        m_ΔTi = m_ΔT[:, entr_ind]
+        for k in range(num_z):
+            # Get the vertical velocity and the ΔT for this entrainment rate
+            m_wi[k] = m_wc[k, entr_ind]
+            m_ΔTi[k] = m_ΔT[k, entr_ind]
+
+            # Reset storage to zero
+            integrand[k] = 0.0
+            m_dΔTidz[k] = 0.0
 
         # Determine valid heights as the index where w_c is finite and nonzero
         idx_valid_wc = np.argwhere(~np.isnan(m_wi) & (m_wi != 0.0))
         cb_ind = np.nanmin(idx_valid_wc) # Index of the cloud bottom
         ct_ind = np.nanmax(idx_valid_wc)+1 # Index of the cloud top
 
+        # Compute the derivative of ΔT w/r/t z to use in the line integral. The
+        # line we integrate over is the ΔT vs. z trajectory.
+        for k in range(num_z): m_dΔTidz[k] = helpers.ddz(m_ΔTi,k,Δz)
+
         # Compute the integral in Eq. (21) using the trapezoidal rule. First
-        # fill the array `integrand` with values of the integrand for all z
-        for k in range(num_z): integrand[k]=0.0
+        # fill the array `integrand` with values of the integrand for all z.
+        # Then integrate using the trapezoidal rule.
         for k in np.arange(cb_ind, ct_ind):
-            integrand[k] = np.exp((-(zt - m_z[k])**2)/(2.0*σz**2) - \
-                                    (ΔT - m_ΔTi[k])**2/(2.0*σΔT**2))
-        intgrl = integrate_trapezoidal(integrand,Δz,num_z)
+            integrand[k] = np.exp(-0.5*((zt - m_z[k])/σz)**2 - \
+                                   0.5*((ΔT - m_ΔTi[k])/σΔT)**2) * \
+                                   np.sqrt(m_dΔTidz[k]**2 + 1)
+        integral = helpers.integrate_trapezoidal(integrand,Δz,num_z)
 
         # The probability for this entrainment rate is the integral times
-        # 1/(length of integration). Store the result in p_arr
-        p_arr[entr_ind] = (1.0/(m_z[ct_ind] - m_z[cb_ind]))*intgrl
+        # 1/(length of integration). Store the result in p_likelihood
+        p_likelihood[entr_ind] = (1.0/(m_ΔTi[ct_ind] - m_ΔTi[cb_ind]))*integral
 
         # Sum all of the probabilities in order to compute the normalization
-        p_norm += p_arr[entr_ind]
+        p_norm += p_likelihood[entr_ind]
 
-    # Normalize all of the probabilites
-    return p_arr/p_norm
+        #########################################################################
+        ##  DEBUGGING
+        # print("entr_ind = ", entr_ind, ", ϵ = ", constants.entrT_list[entr_ind],
+        #     "\nfirst exp arg = ", (zt - m_z)/σz,
+        #     "\nsecond exp arg = ", ((ΔT - m_ΔTi)/σΔT), # "\ndΔTdz = ", m_dΔTidz,
+        #     "\nIntegral = ", integral, ", p_cond = ", p_likelihood[entr_ind])
+        #########################################################################
 
+    # Have to make sure probability is normalized
+    p_likelihood = p_likelihood/p_norm
+
+    ############################################################################
+    # Compute the posteriori probability. Assuming that the priori probability
+    # for ϵ is uniform. Normalize the result
+    p_priori = np.ones(num_entr)/num_entr
+
+    ## Test whether setting the priori to a gaussian centered at the median
+    ## entrainment rate changes the results.
+    # xvals = np.arange(0,1,1/num_entr)
+    # for k in range(num_entr): p_priori[k] = helpers.gaussian(xvals[k], 0.5, 1)
+
+    # The posterior probability is the product of the prior and the likelihood
+    p_posteriori = p_priori*p_likelihood
+    p_posteriori = p_posteriori/(np.nansum(p_posteriori))
+
+    ############################################################################
+    ## DEGUGGING
+    # print("p(ϵ) = ",p_priori)
+    # print("p(z_T, ΔT_t | ϵ_{tur,j}) = ",p_likelihood)
+    # return p_likelihood
+    ############################################################################
+
+    return p_posteriori
 
 @njit()
 def get_weighted_profile(results, sounding, cth=10.0, ctb=0.019224):
@@ -107,7 +143,6 @@ def get_weighted_profile(results, sounding, cth=10.0, ctb=0.019224):
 
     ############################################################################
     ## Compute the temperature at the top of the cloud
-
     m_z = sounding[0]/1e3 # Convert sounding height from m to km
     t_sounding = sounding[2]
 
@@ -120,7 +155,6 @@ def get_weighted_profile(results, sounding, cth=10.0, ctb=0.019224):
 
     ############################################################################
     ## Compute ΔT = (T_c - T_a)/T_a
-
     m_ΔT = np.zeros(m_tvc.shape)
     for i in range(num_z):
         for j in range(num_entr):
@@ -128,8 +162,7 @@ def get_weighted_profile(results, sounding, cth=10.0, ctb=0.019224):
                 m_ΔT[i, j] = (m_tvc[i, j] - m_tva[i, j])/m_tva[i, j]
 
     ############################################################################
-    ## Compute the weighted probability function for all entrainment rates
-
+    # Compute the weighted probability function for all entrainment rates
     pr = compute_weighted_prob(m_ΔT,m_wc, m_z, cth, tc, ta)
 
     ############################################################################

@@ -10,6 +10,7 @@ import helpers
 
 from datetime import datetime
 
+
 def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
                   t:pd.core.series.Series, sh:pd.core.series.Series,
                   mse=None, mse_sat=None):
@@ -42,19 +43,10 @@ def prep_sounding(z:pd.core.series.Series, p:pd.core.series.Series,
                         (in_t.shape == in_p.shape)
     assert assert_condition, "All input arrays must have the same dimensions!"
 
-    """Check whether the input z data has desired discretization"""
-    if in_z_meters[1]-in_z_meters[0] > constants.Δz:
-        # print("Input data's resolution of",(in_z[1]-in_z[0]),"is lower than"
-        #     " desired. Interpolating to user-specified Δz = ",
-        #     Δz)
-        interp_Δz = constants.Δz
-
-    elif in_z_meters[1]-in_z_meters[0] <= constants.Δz:
-        interp_Δz = in_z_meters[1]-in_z_meters[0]
+    interp_Δz = constants.Δz
 
     z_max = 20e3 # Max cloud height is 20 km
     n_z = round(z_max/interp_Δz) # Number of elements in the z direction
-    n_obs = 6 # Number of observables: z, p, sh, t, mse_a, mse_as
 
     # Interpolate the input arrays into the 250 m resolution outputs
     z_meters = np.arange(0, z_max, interp_Δz)
@@ -141,7 +133,8 @@ def initialize_storage(s_len, e_len):
     t_va = np.full((s_len,e_len), np.nan) # ambient virtual temperature
     t_vc = np.full((s_len,e_len), np.nan) #
 
-    return (w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,mr_va,mr_vc,t_va,t_vc)
+    return (w_c, mse_c, mr_w, mr_i, t_c, B, mflux, entr, detr, mr_va, mr_vc,
+            t_va, t_vc)
 
 @njit()
 def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
@@ -149,7 +142,7 @@ def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
     # print("Starting plume run...")
 
     w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,mr_va,mr_vc,t_va,t_vc = storage
-    height, p, t, sh, mse_a, mse_as,ρ,dρdz,dpdz = sounding
+    height, p, t, sh, mse_a, mse_as, ρ, dρdz, dpdz = sounding
     Δz = height[1]-height[0]
     """
     p = pressure [hPa]
@@ -247,7 +240,7 @@ def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
             w_c[n+1,j] = helpers.fd(dwcdz, height[n], w_c[n,j],
                                     Δz, (B[n,j], entr[n,j]))
 
-            if w_c[n+1,j] <= 0.0: break
+            if (w_c[n+1,j] <= 0.0 or np.isnan(w_c[n+1,j])): break
 
             dtcdz_param = -0.01 # Arbitrary guess that gets updated
             tol = constants.dtcdz_tol

@@ -60,12 +60,12 @@ def rk5(dydx, xn:float, yn:float, h:float, dydxArgs:tuple=()):
     return yn + (7.0*k1 + 32.0*k3 + 12.0*k4 + 32.0*k5 + 7.0*k6)*h/90.0
 
 
-"""
-Compute the derivative of a discrete set of points at index n.
-"""
+
 @njit()
 def ddz(vec, n, dn, scheme="central"):
-
+    """
+    Compute the derivative of a vector at index n
+    """
     if vec[n]==np.nan: return np.nan
 
     if n==0 or (n>0 and vec[n-1]==np.nan):
@@ -80,6 +80,27 @@ def ddz(vec, n, dn, scheme="central"):
     else:
         return (vec[n+1] - vec[n-1])/(2.0*dn)
 
+@njit()
+def gaussian(x, mu, sig):
+    return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
+
+
+@njit()
+def integrate_trapezoidal(f, h, n):
+    """
+    Compute the discrete integral of a vector f using the trapezoidal rule
+
+    in: f is a 1D array, h is a float representing the horizontal spacing, n is
+    an integer representing the length of f.
+
+    out: a float representing the integral of the vector.
+    """
+    s = 0.0
+    s += f[0]/2.0
+    for i in range(1, n-1):
+        s += f[i]
+    s += f[-1]/2.0
+    return s * h
 
 ## PLOTTING FUNCTIONS #########################################################
 
