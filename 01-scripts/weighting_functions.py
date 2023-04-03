@@ -136,7 +136,7 @@ def get_weighted_profile(results, sounding, cth=10.0, ctb=0.019224):
 
     # Unpack the results
     m_wc, mse_c, mr_w, t_c, B, mflux, m_entrM, m_detrM, m_tva, m_tvc, mr_i, \
-            mr_va, mr_vc, m_entr = results
+            mr_va, mr_vc, m_qcond, m_qauto, m_entr = results
 
     num_z = m_wc.shape[0] # Get the number of levels that we consider
     num_entr = m_wc.shape[1] # Get the number of levels that we consider
@@ -175,9 +175,12 @@ def get_weighted_profile(results, sounding, cth=10.0, ctb=0.019224):
     mean_entr = np.zeros((num_z, ))
     mean_detr = np.zeros((num_z, ))
     mean_dt = np.zeros((num_z, ))
+    mean_qcond = np.zeros((num_z, ))
+    mean_qauto = np.zeros((num_z, ))
 
-    all_obs = [mean_w, mean_entr, mean_detr, mean_dt]
-    all_raw = [m_wc, m_entrM, m_detrM, m_ΔT]
+
+    all_obs = [mean_w, mean_entr, mean_detr, mean_dt, mean_qcond, mean_qauto]
+    all_raw = [m_wc, m_entrM, m_detrM, m_ΔT, m_qcond, m_qauto]
 
     # Sum the probability of
     for i in range(num_entr):
@@ -196,4 +199,4 @@ def get_weighted_profile(results, sounding, cth=10.0, ctb=0.019224):
     # is zero or nan with nan.
     for obs in all_obs: obs[(mean_w <=0) ^ (np.isnan(mean_w))] = np.nan
 
-    return (mean_w, mean_dt, mean_entr, mean_detr, pr)
+    return (mean_w, mean_dt, mean_entr, mean_detr, pr, mean_qcond, mean_qauto)

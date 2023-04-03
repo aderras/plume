@@ -133,15 +133,19 @@ def initialize_storage(s_len, e_len):
     t_va = np.full((s_len,e_len), np.nan) # ambient virtual temperature
     t_vc = np.full((s_len,e_len), np.nan) #
 
+    mr_cond = np.full((s_len,e_len), np.nan) # ambient virtual temperature
+    mr_auto = np.full((s_len,e_len), np.nan) #
+
     return (w_c, mse_c, mr_w, mr_i, t_c, B, mflux, entr, detr, mr_va, mr_vc,
-            t_va, t_vc)
+            t_va, t_vc, mr_cond, mr_auto)
 
 @njit()
 def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
 
     # print("Starting plume run...")
 
-    w_c,mse_c,mr_w,mr_i,t_c,B,mflux,entr,detr,mr_va,mr_vc,t_va,t_vc = storage
+    w_c, mse_c, mr_w, mr_i, t_c, B, mflux, entr, detr, mr_va, mr_vc, t_va, \
+            t_vc, mr_cond, mr_auto = storage
     height, p, t, sh, mse_a, mse_as, ρ, dρdz, dpdz = sounding
     Δz = height[1]-height[0]
     """
@@ -256,14 +260,24 @@ def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
             #         )
             ## END DEBUGGING ###################################################
 
+
+            dqvcdz_val = dqwdz_val = dqidz_val = dqcdt_val = dqadt_val = 0
+
             while 1:
                 # time_start = datetime.now()
 
                 """Compute dq_vc/dz to be used in dqidz"""
                 dqvcdz_val = dqvcdz(t_c[n,j], p[n], dpdz[n], dtcdz_param)
 
-                dqwdz_val = dqwdz(height[n], mr_w[n,j], entr[n,j], dqvcdz_val,
-                                mr_vc[n,j], mr_va[n,j], w_c[n,j])
+                dqcdt_val = dqcdt(w_c[n,j], dqvcdz_val, entr[n,j], mr_vc[n,j],
+                                mr_va[n,j])
+
+                dqadt_val = dqadt(mr_w[n,j])
+
+                # dqwdz_val = dqwdz(height[n], mr_w[n,j], entr[n,j], dqvcdz_val,
+                #                 mr_vc[n,j], mr_va[n,j], w_c[n,j])
+
+                dqwdz_val = -entr[n,j]*mr_w[n,j] + (1/w_c[n,j])*(dqcdt_val-dqadt_val)
 
                 dqidz_val = dqidz(height[n], mr_i[n,j], mr_w[n,j], dqwdz_val,
                                 t_c[n,j], dtcdz_param)
@@ -315,6 +329,11 @@ def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
                             (entr[n,j], dqvcdz_val, mr_vc[n,j], mr_va[n,j],
                             w_c[n,j]))
 
+
+            """Store the condensation rate and the autoconversion rate"""
+            mr_cond[n+1,j] = dqcdt_val
+            mr_auto[n+1,j] = dqadt_val
+
             ## DEBUGGING ########################################################
             # print("\nWhile loop ended. Ending parameters for level ", n,"are: ")
             # print("w_c[n] = ",w_c[n,j],", w_c[n+1] = ", w_c[n+1,j],
@@ -328,4 +347,4 @@ def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
         if n<s_len: w_c[n+1,j]=np.nan
 
     return (w_c, mse_c, mr_w, t_c, B, mflux, entr, detr, t_va, t_vc, mr_i, \
-            mr_va, mr_vc, entrT_list)
+            mr_va, mr_vc, mr_cond, mr_auto, entrT_list)

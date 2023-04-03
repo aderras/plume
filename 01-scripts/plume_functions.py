@@ -39,6 +39,28 @@ def compute_mr_from_sh(sh):
     """Compute water vapor mixing ratio from specific humidity """
     return sh/(1. - sh)
 
+@njit()
+def dqcdt(wc, dqvcdz, ϵ, qvc, qva):
+    """
+    (\dot{q}_{cond} from Eq. (17) ML16)
+
+        dq_c          dq_vc
+       ------ = -wc (------- + ϵ(q_vc-qva))
+         dt            dz
+    """
+
+    return -wc*(dqvcdz + ϵ*(qvc-qva))
+
+@njit()
+def dqadt(qw):
+    """
+    Eq. (18) in ML16
+    """
+    if qw>constants.q_w_crit:
+        return  (1/(constants.τauto))*(qw-constants.q_w_crit)
+    else:
+        return 0
+
 """
 The following equations are used by the Runge-Kutta solver. The first argument
 has to be the independent coordinate and second has to be the dependent one.
@@ -50,21 +72,21 @@ def dwcdz(z, w_c, B, ϵ):
         dwc      1
        ------ = ---- * (a_b*B - ϵ*wc^2)
          dz      wc
-
     """
     return (1.0/w_c)*(constants.a_b*B - ϵ*w_c**2)
+
+
 
 @njit()
 def dqwdz(z, qw, ϵ, dqvcdz, qvc, qva, wc):
     """
 
-        dqw               dq_vc                      1
-       ------ = -ϵ*qw - (------- + ϵ(q_vc-qva) - --------- (qw-qw_crit)*Θ(qw-qw_crit))
-         dz                 dz                    τauto*wc
+        dqw              1
+       ------ = -ϵ*qw - ---(dqcdt - dqadt)
+         dz              wc
     """
-    dqw = -ϵ*qw - (dqvcdz + ϵ*(qvc-qva))
-    if qw>constants.q_w_crit:
-        return dqw - (1/(constants.τauto*wc))*(qw-constants.q_w_crit)
+    dqw = -ϵ*qw + (1/wc)*(dqcdt(wc, dqvcdz, ϵ, qvc, qva) - dqadt(qw))
+
     return dqw
 
 @njit()
