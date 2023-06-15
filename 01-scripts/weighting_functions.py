@@ -178,7 +178,6 @@ def get_weighted_profile(results, sounding, cth=10.0, ctb=0.019224):
     mean_qcond = np.zeros((num_z, ))
     mean_qauto = np.zeros((num_z, ))
 
-
     all_obs = [mean_w, mean_entr, mean_detr, mean_dt, mean_qcond, mean_qauto]
     all_raw = [m_wc, m_entrM, m_detrM, m_ΔT, m_qcond, m_qauto]
 
@@ -197,6 +196,6 @@ def get_weighted_profile(results, sounding, cth=10.0, ctb=0.019224):
 
     # When all of the observables are computed, replace the areas where mean_w
     # is zero or nan with nan.
-    for obs in all_obs: obs[(mean_w <=0) ^ (np.isnan(mean_w))] = np.nan
+    for obs in all_obs: obs[(mean_w <=0) | (np.isnan(mean_w))] = np.nan
 
     return (mean_w, mean_dt, mean_entr, mean_detr, pr, mean_qcond, mean_qauto)
