@@ -321,6 +321,10 @@ def run_single_plume(storage, sounding, z_surf=0.0, assume_entr=True):
                             ", height = ", n*Δz,
                             ", err = ", err,
                             )
+                    # Replace all the wc values with np.nan when the solution
+                    # fails.
+                    for ii in np.arange(len(w_c)): w_c[ii] = np.nan
+
                     break
 
             """Compute the n+1 element of water vapor mixing ratio when the
