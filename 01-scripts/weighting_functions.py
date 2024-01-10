@@ -92,7 +92,7 @@ def compute_weighted_prob(m_ΔT, m_wc, m_z, cth, tc, ta):
 
         # The probability for this entrainment rate is the integral times
         # 1/(length of integration). Store the result in p_likelihood
-        p_likelihood[entr_ind] = (1.0/(m_ΔTi[ct_ind] - m_ΔTi[cb_ind]))*integral
+        p_likelihood[entr_ind] = (1.0/(m_z[ct_ind]-m_z[cb_ind]))*integral
 
         # Sum all of the probabilities in order to compute the normalization
         p_norm += p_likelihood[entr_ind]
