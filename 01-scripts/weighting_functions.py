@@ -43,6 +43,7 @@ def compute_weighted_prob(m_ΔT, m_wc, m_z, cth, tc, ta):
     ## Arguments of the exponential function:
     σz = 1.0 # Assume error in z is 1 km.
     σΔT = (1.0/ta) # Assume error in ΔT is 1/temperature at the top
+
     zt = cth # Cloud top height
     ΔT = (tc-ta)/ta # Normalized pressure difference of at the top of the cloud
 
@@ -56,7 +57,7 @@ def compute_weighted_prob(m_ΔT, m_wc, m_z, cth, tc, ta):
 
     p_likelihood = np.zeros(num_entr)
     p_posteriori = np.zeros(num_entr)
-    p_priori = np.ones(num_entr)
+    p_priori = np.ones(num_entr)/num_entr
 
     integral = 0.0
 
@@ -73,10 +74,10 @@ def compute_weighted_prob(m_ΔT, m_wc, m_z, cth, tc, ta):
             m_dΔTidz[k] = 0.0
 
         # Determine valid heights as the index where w_c is finite and nonzero
-        idx_valid_wc = (~np.isnan(m_wi))*((m_wi != 0.0))
+        idx_valid_wc = np.argwhere((~np.isnan(m_wi))*((m_wi != 0.0)))
         if len(idx_valid_wc)==0: continue
-        cb_ind = np.nanargmin(idx_valid_wc*m_z) # Index of the cloud bottom
-        ct_ind = np.nanargmax(idx_valid_wc*m_z)+1 # Index of the cloud top
+        cb_ind = np.min(idx_valid_wc) # Index of the cloud bottom
+        ct_ind = np.max(idx_valid_wc)+1 # Index of the cloud top
 
         # Compute the derivative of ΔT w/r/t z to use in the line integral. The
         # line we integrate over is the ΔT vs. z trajectory.
