@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import requests
 import time
+import os
 
 def run_plume(df, fname_suffix, cth=10):
     P  = df['pressure'].values * units(df.units['pressure'])
@@ -26,15 +27,26 @@ def run_plume(df, fname_suffix, cth=10):
     SH2 = SH
 
     sounding = spm.prep_sounding(Z2, P2, T2, SH2)
-    helpers.save_dict_elems_as_csv(sounding, suffix=fname_suffix)
+    storage = spm.initialize_storage(len(sounding[0]),len(constants.entrT_list))
+    sol = spm.run_single_plume(storage, sounding, assume_entr=True)
 
-    # sol = spm.run_single_plume(sounding, assume_entr=True)
-    # helpers.save_dict_elems_as_csv(sol, suffix=fname_suffix)
-    #
-    # """Get weighted profile"""
-    # sol_weighted = wf.get_weighted_profile(sol, sounding, cth=cth)
-    # helpers.save_dict_elems_as_csv(sol_weighted,
-    #         suffix="_weighted" + fname_suffix)
+    """Get weighted profile"""
+    sol_weighted = wf.get_weighted_profile(sol, sounding, cth=cth)
+
+    DIR_OUTPUT = os.path.dirname(os.getcwd())+"/02-data/out_wyoming"
+
+    helpers.save_vec_elems_as_csv(sounding[:7], ["z","p","t","sh","mse_a", "mse_as","rho"],
+                                  dir=DIR_OUTPUT,
+                                  suffix=fname_suffix)
+    helpers.save_vec_elems_as_csv(sol,
+            ["w_c", "mse_c", "q_w", "t_c", "B", "mflux", "entr", "detr", "t_va",\
+            "t_vc", "q_i", "q_va", "q_vc", "q_cond", "q_auto", "entrT"],
+            dir=DIR_OUTPUT,
+            suffix=fname_suffix)
+    helpers.save_vec_elems_as_csv(sol_weighted,['w_c_weighted','dt',
+        'entr_weighted','detr_weighted','pr', "q_cond_weighted", "q_auto_weighted"],
+        dir=DIR_OUTPUT,
+        suffix=fname_suffix)
 
 if __name__ == "__main__":
 
@@ -43,15 +55,12 @@ if __name__ == "__main__":
     stations_water = []#"47991","94299"] # [RJAM Minamitorishima, Willis Island]
 
     """Create a list of dates to acquire data"""
-    date_start = datetime(2007,7,2,0)
-    date_end = datetime(2007,7,7,0)
+    date_start = datetime(2007,7,2,12)
+    date_end = datetime(2007,7,7,12)
     dates = pd.date_range(date_start, date_end)
     dates.freq = None
 
     time_start = datetime.now()
-
-    # df_cth = pd.read_csv(folders.DIR_DATA_STORE + "/cth_61052.csv")
-    # df_cth["datetime"] = pd.to_datetime(df_cth["datetime"])
 
     for station in np.hstack([stations_land, stations_water]):
         for date in dates:
